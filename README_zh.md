@@ -1,16 +1,16 @@
-[English Version](./README.md)
-
 <div align="center">
-  <h3 style="font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; font-size: 1.5em; margin: 20px 0 15px 0;">Lance：通过原生多任务协同实现统一多模态模型</h3>
-  <p style="font-size: 1.20em; font-weight: 500; color: #666; margin: 15px 0 1px 0;">
+  <img src="assets/logo/lance-logo.webp" alt="Lance logo" width="300">
+
+  <h1 align="center"><sup>Lance: Unified Multimodal Modeling by Multi-Task Synergy</sup></h1>
+  <p>
+    <strong>
     <a href="https://scholar.google.com.hk/citations?user=FXxoQlsAAAAJ&hl=zh-CN&oi=ao" style="text-decoration: none; color: inherit;">Fengyi Fu</a><sup>*</sup>, 
     <a href="https://corleone-huang.github.io/" style="text-decoration: none; color: inherit;">Mengqi Huang</a><sup>*,✉</sup>, 
     <a href="https://scholar.google.com.hk/citations?user=9ER6nVkAAAAJ&hl=zh-CN&oi=ao" style="text-decoration: none; color: inherit;">Shaojin Wu</a><sup>*</sup>, 
     Yunsheng Jiang<sup>*</sup>, 
     Yufei Huo, 
     <a href="https://guojianzhu.com/" style="text-decoration: none; color: inherit;">Jianzhu Guo</a><sup>✉,§</sup>
-  </p>
-  <p style="font-size: 1.0em; font-weight: 500; color: #666; margin: 0 0 8px 0;">
+    </strong><br>
     Hao Li, 
     Yinghang Song, 
     Fei Ding, 
@@ -18,17 +18,17 @@
     Zheren Fu, 
     Zhendong Mao, 
     Yongdong Zhang
-  </p>
-  <p style="font-size: 1em; margin: 15px 0; color: #666;">
+    <br>
     <em>ByteDance</em>
+    <br>
+    <sup>*</sup> 共同一作 &nbsp;&nbsp; <sup>✉</sup> 通讯作者 &nbsp;&nbsp; <sup>§</sup> Project lead
   </p>
-  <p style="font-size: 0.9em; color: #777; margin: 8px 0;">
-    <sup>*</sup> 共同一作 &nbsp;&nbsp; <sup>✉</sup> 通讯作者 &nbsp;&nbsp; <sup>§</sup> 项目负责人
-  </p>
-  <p style="margin: 20px 0;">
-    <a href="#" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Website-Lance-blue?style=flat-square&logo=github" alt="Website"></a>
-    <a href="#" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Paper-arXiv-red?style=flat-square&logo=arxiv" alt="arXiv"></a>
-    <a href="#" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Model-HuggingFace-yellow?style=flat-square&logo=huggingface" alt="Model"></a>
+  <p>
+    <a href="https://lance-project.github.io/" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Website-Lance-blue?style=flat-square&logo=github" alt="Website"></a>
+    <a href="https://lance-project.github.io/assets/lance.pdf" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Paper-arXiv-red?style=flat-square&logo=arxiv" alt="arXiv"></a>
+    <a href="https://huggingface.co/bytedance-research/Lance" style="text-decoration: none; margin: 0 8px;"><img src="https://img.shields.io/badge/Model-HuggingFace-yellow?style=flat-square&logo=huggingface" alt="Model"></a>
+    <br>
+    <a href="./README.md"><ins>English</ins></a> | 简体中文
   </p>
 </div>
 
@@ -556,6 +556,19 @@ python lance_gradio_t2v_v2t.py --gpus 0 --server-port 7860
 ## 📄 许可证
 
 Copyright 2025 Bytedance Ltd. and/or its affiliates.
+
+## 💖 引用
+
+如果 Lance 对您的项目或研究有帮助，欢迎 🌟 本仓库，并使用以下 BibTeX 引用我们的工作：
+
+```bibtex
+@misc{lance2026,
+  title  = {Lance: Unified Multimodal Modeling by Multi-Task Synergy},
+  author = {Fengyi Fu and Mengqi Huang and Shaojin Wu and Yunsheng Jiang and Yufei Huo and Jianzhu Guo and Hao Li and Yinghang Song and Fei Ding and Qian He and Zheren Fu and Zhendong Mao and Yongdong Zhang},
+  year   = {2026},
+  note   = {Manuscript}
+}
+```
 
 ## 📞 联系方式
 
