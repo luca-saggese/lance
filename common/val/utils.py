@@ -81,7 +81,7 @@ def decode_video_tensor(video_tensor, video_type="vae", save_path="", save_half=
                 quit()
             save_path_i = f"{save_path}/{save_item_name}.png"
             imageio.imwrite(save_path_i, v_thwc_save[0], format="png")
-        print(f"视频或图像已保存到: {save_path_i}")
+        print(f"video or image saved to {save_path_i}")
     return v_thwc
 
 

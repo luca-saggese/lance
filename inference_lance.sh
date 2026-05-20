@@ -5,23 +5,59 @@ cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/benchmarks/sample_env.sh"
 
 # ========================= Inference Parameters =========================
-NUM_GPUS=1
+NUM_GPUS=${NUM_GPUS:-1}
 
-TASK_NAME=x2t_image # t2i | image_edit | t2v | video_edit | x2t_image | x2t_video
+TASK_NAME=${TASK_NAME:-x2t_image} # t2i | image_edit | t2v | video_edit | x2t_image | x2t_video
 
-VALIDATION_NUM_TIMESTEPS=30 # 50
-VALIDATION_TIMESTEP_SHIFT=3.5
-VALIDATION_DATA_SEED=42
-CFG_TEXT_SCALE=4.0
-USE_KVCACHE=true
+VALIDATION_NUM_TIMESTEPS=${VALIDATION_NUM_TIMESTEPS:-30}
+VALIDATION_TIMESTEP_SHIFT=${VALIDATION_TIMESTEP_SHIFT:-3.5}
+VALIDATION_DATA_SEED=${VALIDATION_DATA_SEED:-42}
+CFG_TEXT_SCALE=${CFG_TEXT_SCALE:-4.0}
+USE_KVCACHE=${USE_KVCACHE:-true}
 
-NUM_FRAMES=50             # max: 121 frames, unused for image tasks
-VIDEO_HEIGHT=768          # unused for editing
-VIDEO_WIDTH=768           # unused for editing
-RESOLUTION="video_480p"   # image_768res | video_480p
-TEXT_TEMPLATE=true
+NUM_FRAMES=${NUM_FRAMES:-50}             # max: 121 frames, unused for image tasks
+VIDEO_HEIGHT=${VIDEO_HEIGHT:-768}        # unused for editing
+VIDEO_WIDTH=${VIDEO_WIDTH:-768}          # unused for editing
+RESOLUTION=${RESOLUTION:-"video_480p"}   # image_768res | video_480p
+TEXT_TEMPLATE=${TEXT_TEMPLATE:-true}
 
-MODEL_PATH="downloads/Lance_3B_Video"
+MODEL_PATH=${MODEL_PATH:-"downloads/Lance_3B_Video"}
+
+# ========================= Command-line Arguments =========================
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --NUM_GPUS) NUM_GPUS="$2"; shift 2 ;;
+        --TASK_NAME) TASK_NAME="$2"; shift 2 ;;
+        --MODEL_PATH) MODEL_PATH="$2"; shift 2 ;;
+
+        --VALIDATION_NUM_TIMESTEPS) VALIDATION_NUM_TIMESTEPS="$2"; shift 2 ;;
+        --VALIDATION_TIMESTEP_SHIFT) VALIDATION_TIMESTEP_SHIFT="$2"; shift 2 ;;
+        --VALIDATION_DATA_SEED) VALIDATION_DATA_SEED="$2"; shift 2 ;;
+        --CFG_TEXT_SCALE) CFG_TEXT_SCALE="$2"; shift 2 ;;
+        --USE_KVCACHE) USE_KVCACHE="$2"; shift 2 ;;
+
+        --NUM_FRAMES) NUM_FRAMES="$2"; shift 2 ;;
+        --VIDEO_HEIGHT) VIDEO_HEIGHT="$2"; shift 2 ;;
+        --VIDEO_WIDTH) VIDEO_WIDTH="$2"; shift 2 ;;
+        --RESOLUTION) RESOLUTION="$2"; shift 2 ;;
+        --TEXT_TEMPLATE) TEXT_TEMPLATE="$2"; shift 2 ;;
+        --SAVE_PATH_GEN) SAVE_PATH_GEN="$2"; shift 2 ;;
+
+        -h|--help)
+            echo "Usage: bash inference_lance_my.sh [OPTIONS]"
+            echo ""
+            echo "Example:"
+            echo "  bash inference_lance_my.sh --TASK_NAME t2i --MODEL_PATH downloads/Lance_3B --RESOLUTION image_768res"
+            exit 0
+            ;;
+
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage."
+            exit 1
+            ;;
+    esac
+done
 
 # ========================= Auto-generated Paths =========================
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -29,7 +65,10 @@ KVCACHE_TAG=""
 if [ "$USE_KVCACHE" = "true" ]; then
     KVCACHE_TAG="_kvcache"
 fi
-SAVE_PATH_GEN="results/${TASK_NAME}_sample_ts${VALIDATION_NUM_TIMESTEPS}_tts${VALIDATION_TIMESTEP_SHIFT}_seed${VALIDATION_DATA_SEED}_cfg${CFG_TEXT_SCALE}${KVCACHE_TAG}_${TIMESTAMP}"
+
+DEFAULT_SAVE_PATH_GEN="results/${TASK_NAME}_sample_ts${VALIDATION_NUM_TIMESTEPS}_tts${VALIDATION_TIMESTEP_SHIFT}_seed${VALIDATION_DATA_SEED}_cfg${CFG_TEXT_SCALE}${KVCACHE_TAG}_${TIMESTAMP}"
+SAVE_PATH_GEN=${SAVE_PATH_GEN:-"$DEFAULT_SAVE_PATH_GEN"}
+
 
 if [ -z "$MODEL_PATH" ]; then
     echo "Error: please set MODEL_PATH manually in the configuration section at the top of this script."
