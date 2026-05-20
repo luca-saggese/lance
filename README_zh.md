@@ -251,7 +251,7 @@ bash inference_lance.sh \
   --NUM_FRAMES 121 \
   --VIDEO_HEIGHT 480 \
   --VIDEO_WIDTH 848 \
-  --SAVE_PATH_GEN results/t2v_121f
+  --SAVE_PATH_GEN results/t2v
 ```
 
 ##### 文本-图像生成
