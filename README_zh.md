@@ -230,7 +230,7 @@ bash ./setup_env.sh
 pip install flash-attn==2.8.3 --no-build-isolation
 ```
 
-#### 选项 2：手动安装
+#### 选项 2：手动安装 （推荐）
 
 ```bash
 conda create -n Lance python=3.11
