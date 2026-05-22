@@ -214,16 +214,59 @@ We are actively updating and improving this repository. If you find any bugs or 
 - **Hardware:** A GPU with at least 40GB VRAM is required for inference
 
 ### Installation Steps
+
+First, clone the repository:
+
+```bash
+git clone https://github.com/bytedance-seed/Lance.git
+cd Lance
+```
+
+#### Option 1: Automated Setup
+
 ```bash
 bash ./setup_env.sh
+pip install flash-attn==2.8.3 --no-build-isolation
 ```
+
+#### Option 2: Manual Setup
+```bash
+conda create -n Lance python=3.11
+pip3 install torch==2.5.1+cu124 torchvision==0.20.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+pip install  -r requirements_full.txt
+pip install flash-attn==2.8.3 --no-build-isolation
+```
+
+> **Note:** If installing `flash-attn` from source fails, you can install the prebuilt wheel instead:
+>
+> ```bash
+> pip install --no-cache-dir --no-deps --force-reinstall \
+> "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.5cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
+> ```
+
 
 ### Download Model Weights
 
 Please download all necessary model checkpoints from [Lance-3B on Hugging Face](https://huggingface.co/bytedance-research/Lance) and place them in the `downloads/` directory.
 
-## 📚 Usage
+```bash
+from huggingface_hub import snapshot_download
 
+save_dir = "./downloads/"
+repo_id = "bytedance-research/Lance" 
+cache_dir = save_dir + "/cache"
+
+snapshot_download(cache_dir=cache_dir,
+  local_dir=save_dir,
+  repo_id=repo_id,
+  local_dir_use_symlinks=False,
+  resume_download=True,
+  allow_patterns=["*.json", "*.safetensors", "*.bin", "*.py", "*.md", "*.txt","*.pth",],
+)
+```
+
+
+## 📚 Usage
 
 ### Inference
 

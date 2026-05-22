@@ -213,14 +213,59 @@
 - **软件环境：** Python 3.10+，CUDA 12.4+（必需）
 - **硬件环境：** 推理至少需要一张显存不低于 40GB 的 GPU
 
+
 ### 安装步骤
+
+首先，克隆代码仓库：
+
+```bash
+git clone https://github.com/bytedance-seed/Lance.git
+cd Lance
+```
+
+#### 选项 1：自动安装
+
 ```bash
 bash ./setup_env.sh
+pip install flash-attn==2.8.3 --no-build-isolation
 ```
+
+#### 选项 2：手动安装
+
+```bash
+conda create -n Lance python=3.11
+conda activate Lance
+pip3 install torch==2.5.1+cu124 torchvision==0.20.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements_full.txt
+pip install flash-attn==2.8.3 --no-build-isolation
+```
+
+> **注意：** 如果从源码安装 `flash-attn` 失败，可以改为安装预编译 wheel：
+>
+> ```bash
+> pip install --no-cache-dir --no-deps --force-reinstall \
+> "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.5cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
+> ```
 
 ### 下载模型权重
 
 请从 [Hugging Face 上的 Lance-3B](https://huggingface.co/bytedance-research/Lance) 下载所需的全部模型权重，并放置到 `downloads/` 目录下。
+
+```bash
+from huggingface_hub import snapshot_download
+
+save_dir = "./downloads/"
+repo_id = "bytedance-research/Lance" 
+cache_dir = save_dir + "/cache"
+
+snapshot_download(cache_dir=cache_dir,
+  local_dir=save_dir,
+  repo_id=repo_id,
+  local_dir_use_symlinks=False,
+  resume_download=True,
+  allow_patterns=["*.json", "*.safetensors", "*.bin", "*.py", "*.md", "*.txt","*.pth",],
+)
+```
 
 ## 📚 使用方法
 
