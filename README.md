@@ -47,6 +47,13 @@ We are actively updating and improving this repository. If you find any bugs or 
 
 ## 🎨 Demo
 
+<details>
+<summary><strong>Show demo results</strong></summary>
+
+<div align="center">
+  <strong>🔥 For more results, visit our <a href="https://lance-project.github.io/">homepage</a> 🔥</strong>
+</div>
+
 <h3 align="center">Text-to-Video</h3>
 
 <table align="center">
@@ -206,6 +213,8 @@ We are actively updating and improving this repository. If you find any bugs or 
   </table>
 </div>
 
+</details>
+
 ## 🚀 Installation
 
 ### Recommended Environment
@@ -240,9 +249,7 @@ pip install flash-attn==2.8.3 --no-build-isolation
 > ```
 
 
-### Download Model Weights
-
-Please download all necessary model checkpoints from [Lance-3B on Hugging Face](https://huggingface.co/bytedance-research/Lance) and place them in the `downloads/` directory.
+Then, download the model weights from [Lance-3B on Hugging Face](https://huggingface.co/bytedance-research/Lance) and place them in the `downloads/` directory:
 
 ```bash
 from huggingface_hub import snapshot_download

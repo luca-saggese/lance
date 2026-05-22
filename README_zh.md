@@ -47,6 +47,13 @@
 
 ## 🎨 演示
 
+<details>
+<summary><strong>展开查看演示结果</strong></summary>
+
+<div align="center">
+  <strong>🔥 更多结果请访问我们的 <a href="https://lance-project.github.io/">homepage</a> 🔥</strong>
+</div>
+
 <h3 align="center">文生视频</h3>
 
 <table align="center">
@@ -206,6 +213,8 @@
   </table>
 </div>
 
+</details>
+
 ## 🚀 安装
 
 ### 推荐环境
@@ -240,9 +249,7 @@ pip install flash-attn==2.8.3 --no-build-isolation
 > "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.5cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
 > ```
 
-### 下载模型权重
-
-请从 [Hugging Face 上的 Lance-3B](https://huggingface.co/bytedance-research/Lance) 下载所需的全部模型权重，并放置到 `downloads/` 目录下。
+然后，从 [Hugging Face 上的 Lance-3B](https://huggingface.co/bytedance-research/Lance) 下载所需的全部模型权重，并放置到 `downloads/` 目录下：
 
 ```bash
 from huggingface_hub import snapshot_download
