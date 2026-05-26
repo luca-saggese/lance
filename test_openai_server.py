@@ -26,6 +26,9 @@ OUTPUT_DIR = Path("test_outputs")
 INPUT_DIR = Path("test_input")
 INPUT_IMAGE = INPUT_DIR / "t2i.png"
 INPUT_VIDEO = INPUT_DIR / "t2v.mp4"
+INPUT_GIRL   = INPUT_DIR / "girl.png"
+INPUT_FLOWER = INPUT_DIR / "flower.png"
+INPUT_HAT    = INPUT_DIR / "hat.jpeg"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -56,6 +59,18 @@ def _input_image_b64() -> str:
 
 def _input_video_b64() -> str:
     return _file_to_data_uri(INPUT_VIDEO, "video/mp4")
+
+
+def _input_girl_b64() -> str:
+    return _file_to_data_uri(INPUT_GIRL, "image/png")
+
+
+def _input_flower_b64() -> str:
+    return _file_to_data_uri(INPUT_FLOWER, "image/png")
+
+
+def _input_hat_b64() -> str:
+    return _file_to_data_uri(INPUT_HAT, "image/jpeg")
 
 
 def _post(base_url: str, payload: dict, timeout: int) -> requests.Response:
@@ -363,6 +378,46 @@ def test_x2v(base_url: str, timeout: int, seed: int) -> bool:
         return False
 
 
+def test_x2i_hat(base_url: str, timeout: int, seed: int) -> bool:
+    """Girl + Flower + Hat → Image: metti il cappello alla ragazza con il fiore sopra."""
+    for path in (INPUT_GIRL, INPUT_FLOWER, INPUT_HAT):
+        if not path.exists():
+            _result(False, "POST /v1/chat/completions  [lance-x2i  – Girl+Flower+Hat→Image]", f"File non trovato: {path}")
+            return False
+    payload = {
+        "model": "lance-x2i",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": (
+                        "Three reference images are provided. "
+                        "The first image is a hat. "
+                        "The second image is a decorative flower. "
+                        "The third image is a portrait of a girl. "
+                        "Generate a new portrait: the girl from the third image is wearing the hat from the first image on her head, "
+                        "with the flower from the second image placed on top of the hat as a decoration. "
+                        "Preserve the girl's face, skin tone, hair and body from the third image exactly."
+                    )},
+                    {"type": "image_url", "image_url": {"url": _input_hat_b64()}},
+                    {"type": "image_url", "image_url": {"url": _input_flower_b64()}},
+                    {"type": "image_url", "image_url": {"url": _input_girl_b64()}},
+                ],
+            }
+        ],
+        "seed": seed,
+        "num_timesteps": 30,
+    }
+    try:
+        resp = _post(base_url, payload, timeout)
+        ok, detail = _check_generation_response(resp, "images", "x2i_hat")
+        _result(ok, "POST /v1/chat/completions  [lance-x2i  – Girl+Flower+Hat→Image]", detail)
+        return ok
+    except Exception as exc:
+        _result(False, "POST /v1/chat/completions  [lance-x2i  – Girl+Flower+Hat→Image]", str(exc))
+        return False
+
+
 def test_x2i(base_url: str, timeout: int, seed: int) -> bool:
     """Text + Video + Image → Image (x2i: qualsiasi mix di media → immagine)."""
     if not INPUT_VIDEO.exists():
@@ -413,6 +468,7 @@ _TESTS: list[tuple] = [
     ("ti2v",        "lance-ti2v",   "Image + Text → Video",                 lambda bu, to, se: test_ti2v(bu, to, se)),
     ("x2v",         "lance-x2v",    "Any (text/image/video) → Video",       lambda bu, to, se: test_x2v(bu, to, se)),
     ("x2i",         "lance-x2i",    "Any (text/image/video) → Image",       lambda bu, to, se: test_x2i(bu, to, se)),
+    ("x2i_hat",     "lance-x2i",    "Girl + Flower + Hat → Image (cappello)", lambda bu, to, se: test_x2i_hat(bu, to, se)),
 ]
 
 _RUNNABLE_NAMES = [name for name, model, *_ in _TESTS if model is not None]
