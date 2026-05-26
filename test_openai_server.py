@@ -397,11 +397,42 @@ def test_x2i(base_url: str, timeout: int, seed: int) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Registro dei test (nome → funzione, modello richiesto, descrizione)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ogni entry: (funzione, modello_richiesto_su_server_o_None, descrizione)
+_TESTS: list[tuple] = [
+    ("health",      None,           "GET /health",                          lambda bu, to, se: test_health(bu, to)),
+    ("list_models", None,           "GET /v1/models",                       None),  # gestito a parte
+    ("t2i",         "lance-t2i",    "Text → Image",                         lambda bu, to, se: test_t2i(bu, to, se)),
+    ("i2i",         "lance-i2i",    "Image → Image",                        lambda bu, to, se: test_i2i(bu, to, se)),
+    ("i2t",         "lance-i2t",    "Image → Text",                         lambda bu, to, se: test_i2t(bu, to, se)),
+    ("t2v",         "lance-t2v",    "Text → Video",                         lambda bu, to, se: test_t2v(bu, to, se)),
+    ("v2v",         "lance-v2v",    "Video → Video",                        lambda bu, to, se: test_v2v(bu, to, se)),
+    ("v2t",         "lance-v2t",    "Video → Text",                         lambda bu, to, se: test_v2t(bu, to, se)),
+    ("ti2v",        "lance-ti2v",   "Image + Text → Video",                 lambda bu, to, se: test_ti2v(bu, to, se)),
+    ("x2v",         "lance-x2v",    "Any (text/image/video) → Video",       lambda bu, to, se: test_x2v(bu, to, se)),
+    ("x2i",         "lance-x2i",    "Any (text/image/video) → Image",       lambda bu, to, se: test_x2i(bu, to, se)),
+]
+
+_RUNNABLE_NAMES = [name for name, model, *_ in _TESTS if model is not None]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Test del server Lance OpenAI-compatibile")
+    test_list_help = "  " + "\n  ".join(
+        f"{name:<12}  {desc}"
+        for name, model, desc, *_ in _TESTS
+        if model is not None
+    )
+    parser = argparse.ArgumentParser(
+        description="Test del server Lance OpenAI-compatibile",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"Test disponibili:\n{test_list_help}",
+    )
     parser.add_argument("port", type=int, help="Porta su cui gira il server (es. 8000)")
     parser.add_argument("--host", default="127.0.0.1", help="Host del server (default: 127.0.0.1)")
     parser.add_argument("--seed", type=int, default=42, help="Seed per la generazione (default: 42)")
@@ -411,91 +442,61 @@ def main() -> None:
         default=300,
         help="Timeout in secondi per ogni richiesta (default: 300)",
     )
+    parser.add_argument(
+        "--test",
+        metavar="NOME",
+        nargs="+",
+        choices=_RUNNABLE_NAMES,
+        help=(
+            "Esegui solo i test specificati (spazio-separati). "
+            f"Valori validi: {', '.join(_RUNNABLE_NAMES)}"
+        ),
+    )
     args = parser.parse_args()
 
     base_url = f"http://{args.host}:{args.port}"
+    selected: set[str] = set(args.test) if args.test else set(_RUNNABLE_NAMES)
+
     print(f"\nServer: {base_url}  |  seed={args.seed}  |  timeout={args.timeout}s")
+    if args.test:
+        print(f"Test selezionati: {', '.join(args.test)}")
     print(f"Output:  {OUTPUT_DIR.resolve()}\n")
     print("=" * 65)
 
     results: dict[str, bool | None] = {}
 
-    # ── 1. Health ─────────────────────────────────────────────────────────
+    # ── Health & models list (sempre eseguiti) ────────────────────────────
     results["health"] = test_health(base_url, timeout=10)
-
-    # ── 2. Models list ────────────────────────────────────────────────────
     available_models = test_list_models(base_url, timeout=10)
-    results["list_models"] = True  # se arriva fin qui senza eccezione è ok
+    results["list_models"] = True
 
     print()
 
-    # ── 3. Text-to-Image ──────────────────────────────────────────────────
-    if "lance-t2i" in available_models:
-        results["t2i"] = test_t2i(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-t2i  – Text→Image]  (pipeline non caricata)")
-        results["t2i"] = None
+    # ── Test selezionati ──────────────────────────────────────────────────
+    prev_group = None
+    for name, model, desc, fn in _TESTS:
+        if model is None:
+            continue  # health/list_models già eseguiti sopra
+        if name not in selected:
+            continue
 
-    # ── 4. Image→Image ────────────────────────────────────────────────────
-    if "lance-i2i" in available_models:
-        results["i2i"] = test_i2i(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-i2i  – Image→Image]  (pipeline non caricata)")
-        results["i2i"] = None
+        # Separatore visivo tra gruppo immagine e gruppo video
+        group = "image" if model in {"lance-t2i", "lance-i2i", "lance-i2t", "lance-x2i"} else "video"
+        if prev_group is not None and group != prev_group:
+            print()
+        prev_group = group
 
-    # ── 5. Image→Text ─────────────────────────────────────────────────────
-    if "lance-i2t" in available_models:
-        results["i2t"] = test_i2t(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-i2t  – Image→Text]  (pipeline non caricata)")
-        results["i2t"] = None
+        if model in available_models:
+            results[name] = fn(base_url, args.timeout, args.seed)
+        else:
+            label = f"POST /v1/chat/completions  [{model}  – {desc}]"
+            print(f"{SKIP}  {label}  (pipeline non caricata)")
+            results[name] = None
 
-    print()
-
-    # ── 6. Text-to-Video ──────────────────────────────────────────────────
-    if "lance-t2v" in available_models:
-        results["t2v"] = test_t2v(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-t2v  – Text→Video]  (pipeline non caricata)")
-        results["t2v"] = None
-
-    # ── 7. Video→Video ────────────────────────────────────────────────────
-    if "lance-v2v" in available_models:
-        results["v2v"] = test_v2v(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-v2v  – Video→Video]  (pipeline non caricata)")
-        results["v2v"] = None
-
-    # ── 8. Video→Text ─────────────────────────────────────────────────────
-    if "lance-v2t" in available_models:
-        results["v2t"] = test_v2t(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-v2t  – Video→Text]  (pipeline non caricata)")
-        results["v2t"] = None
-
-    # ── 9. Image+Text→Video (ti2v) ────────────────────────────────────────
-    if "lance-ti2v" in available_models:
-        results["ti2v"] = test_ti2v(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]  (pipeline non caricata)")
-        results["ti2v"] = None
-    # ── 10. Any→Video (x2v) ───────────────────────────────────────────────────────
-    if "lance-x2v" in available_models:
-        results["x2v"] = test_x2v(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-x2v  – Any→Video]  (pipeline non caricata)")
-        results["x2v"] = None
-
-    # ── 11. Any→Image (x2i) ───────────────────────────────────────────────────────
-    if "lance-x2i" in available_models:
-        results["x2i"] = test_x2i(base_url, args.timeout, args.seed)
-    else:
-        print(f"{SKIP}  POST /v1/chat/completions  [lance-x2i  – Any→Image]  (pipeline non caricata)")
-        results["x2i"] = None
     # ── Riepilogo ─────────────────────────────────────────────────────────
     print("\n" + "=" * 65)
-    passed = sum(1 for v in results.values() if v is True)
-    failed = sum(1 for v in results.values() if v is False)
+    passed  = sum(1 for v in results.values() if v is True)
+    failed  = sum(1 for v in results.values() if v is False)
     skipped = sum(1 for v in results.values() if v is None)
     print(f"Riepilogo: {passed} passati  |  {failed} falliti  |  {skipped} saltati\n")
 
