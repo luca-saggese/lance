@@ -299,6 +299,36 @@ def test_v2t(base_url: str, timeout: int, seed: int) -> bool:
         return False
 
 
+def test_ti2v(base_url: str, timeout: int, seed: int) -> bool:
+    """Image+Text → Video (ti2v / tiv2v_idip)."""
+    if not INPUT_IMAGE.exists():
+        _result(False, "POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]", f"File non trovato: {INPUT_IMAGE}")
+        return False
+    payload = {
+        "model": "lance-ti2v",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Animate this scene with gentle camera movement and soft lighting"},
+                    {"type": "image_url", "image_url": {"url": _input_image_b64()}},
+                ],
+            }
+        ],
+        "seed": seed,
+        "num_timesteps": 5,
+        "num_frames": 9,
+    }
+    try:
+        resp = _post(base_url, payload, timeout)
+        ok, detail = _check_generation_response(resp, "videos", "ti2v")
+        _result(ok, "POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]", detail)
+        return ok
+    except Exception as exc:
+        _result(False, "POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]", str(exc))
+        return False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -375,6 +405,13 @@ def main() -> None:
     else:
         print(f"{SKIP}  POST /v1/chat/completions  [lance-v2t  – Video→Text]  (pipeline non caricata)")
         results["v2t"] = None
+
+    # ── 9. Image+Text→Video (ti2v) ────────────────────────────────────────
+    if "lance-ti2v" in available_models:
+        results["ti2v"] = test_ti2v(base_url, args.timeout, args.seed)
+    else:
+        print(f"{SKIP}  POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]  (pipeline non caricata)")
+        results["ti2v"] = None
 
     # ── Riepilogo ─────────────────────────────────────────────────────────
     print("\n" + "=" * 65)

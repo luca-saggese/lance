@@ -122,6 +122,7 @@ from inference_lance import (
     TASK_IMAGE_EDIT,
     TASK_T2I,
     TASK_T2V,
+    TASK_TI2V,
     TASK_VIDEO_EDIT,
     TASK_X2T_IMAGE,
     TASK_X2T_VIDEO,
@@ -161,7 +162,7 @@ USE_KVCACHE = True
 TEXT_TEMPLATE = True
 
 IMAGE_TASKS = {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2T_IMAGE}
-VIDEO_TASKS = {TASK_T2V, TASK_VIDEO_EDIT, TASK_X2T_VIDEO}
+VIDEO_TASKS = {TASK_T2V, TASK_VIDEO_EDIT, TASK_X2T_VIDEO, TASK_TI2V}
 
 # Default resolution per task
 TASK_DEFAULTS: Dict[str, Dict[str, Any]] = {
@@ -196,6 +197,12 @@ TASK_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "num_frames": 1,
     },
     TASK_X2T_VIDEO: {
+        "resolution": "video_480p",
+        "video_height": 480,
+        "video_width": 848,
+        "num_frames": 50,
+    },
+    TASK_TI2V: {
         "resolution": "video_480p",
         "video_height": 480,
         "video_width": 848,
@@ -522,6 +529,8 @@ def encode_file_as_data_url(path: Path) -> str:
 _MODEL_TO_TASK: Dict[str, str] = {
     "lance-t2i": TASK_T2I,
     "lance-t2v": TASK_T2V,
+    "lance-ti2v": TASK_TI2V,
+    "lance-i2v": TASK_TI2V,
     "lance-i2i": TASK_IMAGE_EDIT,
     "lance-image-edit": TASK_IMAGE_EDIT,
     "lance-v2v": TASK_VIDEO_EDIT,
@@ -565,6 +574,8 @@ def detect_task(
     if has_image:
         if wants_text and not wants_image and not wants_video:
             return TASK_X2T_IMAGE
+        if wants_video:
+            return TASK_TI2V
         return TASK_IMAGE_EDIT
 
     # Solo testo in input
@@ -578,12 +589,39 @@ def detect_task(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def create_placeholder_video(
+    image_path: Path,
+    num_frames: int,
+    height: int,
+    width: int,
+    output_path: Path,
+    fps: int = 24,
+) -> Path:
+    """
+    Crea un video MP4 placeholder ripetendo un'immagine per ``num_frames`` frame.
+    Usato per ti2v quando l'utente non fornisce un video di riferimento per la shape.
+    """
+    import imageio
+    import numpy as np
+    from PIL import Image as _Image
+
+    img = _Image.open(image_path).convert("RGB").resize((width, height))
+    frame = np.array(img)
+    frames = [frame] * num_frames
+    imageio.mimsave(str(output_path), frames, fps=fps)
+    return output_path
+
+
 def build_prompt_file(
     task: str,
     prompt: str,
     media_path: Optional[Path],
     question: str,
     save_dir: Path,
+    reference_video_path: Optional[Path] = None,
+    num_frames: int = 50,
+    height: int = 480,
+    width: int = 848,
 ) -> Path:
     """
     Crea il file JSON di input compatibile con ValidationDataset.
@@ -642,6 +680,25 @@ def build_prompt_file(
                 "interleave_array": [str(media_path), [V2T_SYSTEM_PROMPT, q, ""]],
                 "element_dtype_array": ["video", "text"],
                 "istarget_in_interleave": [0, 1],
+            }
+        }
+
+    elif task == TASK_TI2V:
+        if media_path is None:
+            raise ValueError("ti2v richiede un'immagine in input.")
+        # Se non viene fornito un video di riferimento, creane uno placeholder
+        # dall'immagine stessa per stabilire la shape dell'output.
+        if reference_video_path is not None:
+            vid_str = str(reference_video_path)
+        else:
+            placeholder = save_dir / "ti2v_placeholder.mp4"
+            create_placeholder_video(media_path, num_frames, height, width, placeholder)
+            vid_str = str(placeholder)
+        payload = {
+            "000000.mp4": {
+                "interleave_array": [prompt, str(media_path), vid_str],
+                "element_dtype_array": ["text", "image", "video"],
+                "istarget_in_interleave": [0, 0, 1],
             }
         }
 
@@ -933,6 +990,7 @@ class LancePipeline:
         validation_timestep_shift: float,
         cfg_text_scale: float,
         use_kvcache: bool,
+        reference_video_path: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
         Esegue l'inferenza e restituisce un dizionario con:
@@ -969,6 +1027,10 @@ class LancePipeline:
                     media_path=media_path,
                     question=question,
                     save_dir=req_input_dir,
+                    reference_video_path=reference_video_path,
+                    num_frames=num_frames or TASK_DEFAULTS[task]["num_frames"],
+                    height=height or TASK_DEFAULTS[task]["video_height"],
+                    width=width or TASK_DEFAULTS[task]["video_width"],
                 )
 
                 # Costruisci model/data/inference args per questa richiesta
@@ -1048,7 +1110,7 @@ class LancePipeline:
                     images = sorted(save_dir.glob("*.png"), key=lambda p: p.stat().st_mtime)
                     result["images"] = [encode_file_as_data_url(img) for img in images]
 
-                elif task in {TASK_T2V, TASK_VIDEO_EDIT}:
+                elif task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V}:
                     # Video
                     videos = sorted(save_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
                     result["videos"] = [encode_file_as_data_url(vid) for vid in videos]
@@ -1118,15 +1180,6 @@ def get_pipeline_for_task(task: str) -> LancePipeline:
 @app.get("/health")
 async def health():
     """Health check."""
-    try:
-        print(f"[lance_server][debug] response message_content keys: {list(message_content.keys())}", flush=True)
-        if message_content.get("videos"):
-            print(f"[lance_server][debug] videos count: {len(message_content.get('videos'))}", flush=True)
-        if message_content.get("images"):
-            print(f"[lance_server][debug] images count: {len(message_content.get('images'))}", flush=True)
-    except Exception:
-        pass
-
     return {
         "status": "ok",
         "image_pipeline": _image_pipeline.initialized if _image_pipeline else False,
@@ -1142,7 +1195,7 @@ async def list_models():
         for name in ["lance-t2i", "lance-i2i", "lance-i2t"]:
             available.append({"id": name, "object": "model", "owned_by": "bytedance"})
     if _video_pipeline is not None:
-        for name in ["lance-t2v", "lance-v2v", "lance-v2t"]:
+        for name in ["lance-t2v", "lance-ti2v", "lance-v2v", "lance-v2t"]:
             available.append({"id": name, "object": "model", "owned_by": "bytedance"})
     return {"object": "list", "data": available}
 
@@ -1218,12 +1271,19 @@ async def chat_completions(request: Request):
     tmp_media_dir = TMP_INPUT_DIR / f"media_{req_id}"
     tmp_media_dir.mkdir(parents=True, exist_ok=True)
     media_path: Optional[Path] = None
+    reference_video_path: Optional[Path] = None
 
     try:
         if task in {TASK_IMAGE_EDIT, TASK_X2T_IMAGE} and image_urls:
             media_path = resolve_media(image_urls[0], "image", tmp_media_dir)
         elif task in {TASK_VIDEO_EDIT, TASK_X2T_VIDEO} and video_urls:
             media_path = resolve_media(video_urls[0], "video", tmp_media_dir)
+        elif task == TASK_TI2V:
+            if image_urls:
+                media_path = resolve_media(image_urls[0], "image", tmp_media_dir)
+            # Secondo video_url opzionale usato come riferimento di shape
+            if video_urls:
+                reference_video_path = resolve_media(video_urls[0], "video", tmp_media_dir)
     except Exception as exc:
         shutil.rmtree(tmp_media_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Errore nella risoluzione del media: {exc}") from exc
@@ -1296,6 +1356,7 @@ async def chat_completions(request: Request):
                 validation_timestep_shift=timestep_shift,
                 cfg_text_scale=cfg_scale,
                 use_kvcache=use_kvcache,
+                reference_video_path=reference_video_path,
             ),
         )
     except Exception as exc:

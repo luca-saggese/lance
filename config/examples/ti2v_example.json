@@ -1,0 +1,36 @@
+{
+  "000001.mp4": {
+    "interleave_array": [
+      "A woman walks gracefully along a sunlit beach, gentle waves washing over her bare feet, her hair flowing in the ocean breeze.",
+      "config/examples/image_edit_examples/edit_img.jpg",
+      "config/examples/video_edit_examples/edit_source_woman.mp4"
+    ],
+    "element_dtype_array": [
+      "text",
+      "image",
+      "video"
+    ],
+    "istarget_in_interleave": [
+      0,
+      0,
+      1
+    ]
+  },
+  "000002.mp4": {
+    "interleave_array": [
+      "The car accelerates smoothly down an empty highway at dusk, headlights cutting through the fading golden light, engine roaring softly.",
+      "config/examples/image_edit_examples/edit_img.jpg",
+      "config/examples/video_edit_examples/edit_source_car.mp4"
+    ],
+    "element_dtype_array": [
+      "text",
+      "image",
+      "video"
+    ],
+    "istarget_in_interleave": [
+      0,
+      0,
+      1
+    ]
+  }
+}
