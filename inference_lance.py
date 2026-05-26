@@ -328,7 +328,9 @@ def validate_on_fixed_batch(
                 save_item_name = f"{index:06d}" if isinstance(index, int) else index
                 v_thwc = decode_video_tensor(v_list, save_path=save_path_gen, save_half=False, save_item_name=save_item_name)
 
-                if v_thwc.shape[0] > 1:
+                # Treat tasks that are video generation/edit as video outputs.
+                is_video_task = inference_args.task in {TASK_T2V, TASK_VIDEO_EDIT}
+                if v_thwc.shape[0] > 1 or is_video_task:
                     prompt_data_path = f"{save_item_name}.mp4"
                 else:
                     prompt_data_path = f"{save_item_name}.png"

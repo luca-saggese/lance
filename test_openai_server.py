@@ -92,6 +92,7 @@ def _check_generation_response(
     msg = choices[0].get("message", {})
     items = msg.get(field, [])
     if not items:
+        print (f"DEBUG: Risposta completa: {json.dumps(data)[:500]}")  # debug extra
         return False, f"Campo '{field}' assente o vuoto nel messaggio"
     url_field = "imageUrl" if field == "images" else "videoUrl"
     ext = ".png" if field == "images" else ".mp4"
