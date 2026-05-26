@@ -14,8 +14,9 @@ RUN git clone https://github.com/luca-saggese/Lance.git /workspace/Lance
 RUN pip install packaging && \
     python should_install.py && \
     pip install tokenizers==0.21.4 --no-deps && \
-    pip install "numpy<2" && \
-    pip install fastapi uvicorn  --no-deps
+    pip install "numpy<2" 
+    
+RUN    pip install fastapi uvicorn
 
 EXPOSE 8000
 
