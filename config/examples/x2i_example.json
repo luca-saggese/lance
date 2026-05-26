@@ -1,0 +1,62 @@
+{
+  "0001": {
+    "interleave_array": [
+      "Remove the hat from the painting.",
+      "config/examples/image_edit_examples/edit_img.jpg",
+      "config/examples/image_edit_examples/edit_img.jpg"
+    ],
+    "element_dtype_array": [
+      "text",
+      "image",
+      "image"
+    ],
+    "istarget_in_interleave": [
+      0,
+      0,
+      1
+    ]
+  },
+  "0002": {
+    "interleave_array": [
+      "Add a pearl necklace around the woman's neck.",
+      "config/examples/video_edit_examples/edit_source_woman.mp4",
+      "config/examples/image_edit_examples/edit_img.jpg",
+      "config/examples/image_edit_examples/edit_img.jpg"
+    ],
+    "element_dtype_array": [
+      "text",
+      "video",
+      "image",
+      "image"
+    ],
+    "istarget_in_interleave": [
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  "0003": {
+    "interleave_array": [
+      "Change the woman's action to forming a peace sign near her face.",
+      "config/examples/video_edit_examples/edit_source_woman.mp4",
+      "config/examples/video_edit_examples/edit_source_car.mp4",
+      "config/examples/image_edit_examples/edit_img.jpg",
+      "config/examples/image_edit_examples/edit_img.jpg"
+    ],
+    "element_dtype_array": [
+      "text",
+      "video",
+      "video",
+      "image",
+      "image"
+    ],
+    "istarget_in_interleave": [
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  }
+}

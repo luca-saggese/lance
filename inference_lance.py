@@ -66,12 +66,16 @@ TASK_X2T_VIDEO = "x2t_video"
 TASK_IMAGE_EDIT = "image_edit"
 TASK_VIDEO_EDIT = "video_edit"
 TASK_TI2V = "tiv2v_idip"  # text + image → video (identity-preserving)
+TASK_X2V = "x2v"  # any mix of text/image/video → video
+TASK_X2I = "x2i"  # any mix of text/image/video → image
 GENERATION_TASKS = {
     TASK_T2V,
     TASK_T2I,
     TASK_IMAGE_EDIT,
     TASK_VIDEO_EDIT,
     TASK_TI2V,
+    TASK_X2V,
+    TASK_X2I,
 }
 UNDERSTANDING_TASKS = {
     TASK_X2T_IMAGE,
@@ -112,6 +116,16 @@ TASK_DEFAULT_CONFIGS = {
         "model_family": "video",
         "example_json": "config/examples/x2t_video_example.json",
         "save_path_prefix": "results/x2t_video_sample",
+    },
+    TASK_X2V: {
+        "model_family": "video",
+        "example_json": "config/examples/x2v_example.json",
+        "save_path_prefix": "results/x2v_sample",
+    },
+    TASK_X2I: {
+        "model_family": "image",
+        "example_json": "config/examples/x2i_example.json",
+        "save_path_prefix": "results/x2i_sample",
     },
 }
 
@@ -336,7 +350,7 @@ def validate_on_fixed_batch(
                 v_thwc = decode_video_tensor(v_list, save_path=save_path_gen, save_half=False, save_item_name=save_item_name)
 
                 # Treat tasks that are video generation/edit as video outputs.
-                is_video_task = inference_args.task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V}
+                is_video_task = inference_args.task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V, TASK_X2V}
                 if v_thwc.shape[0] > 1 or is_video_task:
                     prompt_data_path = f"{save_item_name}.mp4"
                 else:

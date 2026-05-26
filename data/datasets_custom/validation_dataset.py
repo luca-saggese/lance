@@ -1157,6 +1157,12 @@ class ValidationDataset(Dataset):
         elif self.data_config.task == "image_idip":
             self.sample_task = 'idip'
             return self.tiv2v_sample(idx)
+        elif self.data_config.task == "x2v":
+            self.sample_task = 'edit'
+            return self.tiv2v_sample(idx)
+        elif self.data_config.task == "x2i":
+            self.sample_task = 'edit'
+            return self.tiv2v_sample(idx)
         elif self.data_config.task in ["x2t", "x2t_image", "x2t_video"]:
             return self.x2t_sample(idx)
         else:

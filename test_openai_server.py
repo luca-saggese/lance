@@ -329,6 +329,73 @@ def test_ti2v(base_url: str, timeout: int, seed: int) -> bool:
         return False
 
 
+def test_x2v(base_url: str, timeout: int, seed: int) -> bool:
+    """Text + Image + Video → Video (x2v: qualsiasi mix di media → video)."""
+    if not INPUT_IMAGE.exists():
+        _result(False, "POST /v1/chat/completions  [lance-x2v  – Any→Video]", f"File non trovato: {INPUT_IMAGE}")
+        return False
+    if not INPUT_VIDEO.exists():
+        _result(False, "POST /v1/chat/completions  [lance-x2v  – Any→Video]", f"File non trovato: {INPUT_VIDEO}")
+        return False
+    payload = {
+        "model": "lance-x2v",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Generate a video in the visual style of the image, with motion inspired by the reference video"},
+                    {"type": "image_url", "image_url": {"url": _input_image_b64()}},
+                    {"type": "video_url", "video_url": {"url": _input_video_b64()}},
+                ],
+            }
+        ],
+        "seed": seed,
+        "num_timesteps": 5,
+        "num_frames": 9,
+    }
+    try:
+        resp = _post(base_url, payload, timeout)
+        ok, detail = _check_generation_response(resp, "videos", "x2v")
+        _result(ok, "POST /v1/chat/completions  [lance-x2v  – Any→Video]", detail)
+        return ok
+    except Exception as exc:
+        _result(False, "POST /v1/chat/completions  [lance-x2v  – Any→Video]", str(exc))
+        return False
+
+
+def test_x2i(base_url: str, timeout: int, seed: int) -> bool:
+    """Text + Video + Image → Image (x2i: qualsiasi mix di media → immagine)."""
+    if not INPUT_VIDEO.exists():
+        _result(False, "POST /v1/chat/completions  [lance-x2i  – Any→Image]", f"File non trovato: {INPUT_VIDEO}")
+        return False
+    if not INPUT_IMAGE.exists():
+        _result(False, "POST /v1/chat/completions  [lance-x2i  – Any→Image]", f"File non trovato: {INPUT_IMAGE}")
+        return False
+    payload = {
+        "model": "lance-x2i",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Generate an image that combines the composition of this image with the mood of the video"},
+                    {"type": "video_url", "video_url": {"url": _input_video_b64()}},
+                    {"type": "image_url", "image_url": {"url": _input_image_b64()}},
+                ],
+            }
+        ],
+        "seed": seed,
+        "num_timesteps": 5,
+    }
+    try:
+        resp = _post(base_url, payload, timeout)
+        ok, detail = _check_generation_response(resp, "images", "x2i")
+        _result(ok, "POST /v1/chat/completions  [lance-x2i  – Any→Image]", detail)
+        return ok
+    except Exception as exc:
+        _result(False, "POST /v1/chat/completions  [lance-x2i  – Any→Image]", str(exc))
+        return False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
@@ -412,7 +479,19 @@ def main() -> None:
     else:
         print(f"{SKIP}  POST /v1/chat/completions  [lance-ti2v – Image+Text→Video]  (pipeline non caricata)")
         results["ti2v"] = None
+    # ── 10. Any→Video (x2v) ───────────────────────────────────────────────────────
+    if "lance-x2v" in available_models:
+        results["x2v"] = test_x2v(base_url, args.timeout, args.seed)
+    else:
+        print(f"{SKIP}  POST /v1/chat/completions  [lance-x2v  – Any→Video]  (pipeline non caricata)")
+        results["x2v"] = None
 
+    # ── 11. Any→Image (x2i) ───────────────────────────────────────────────────────
+    if "lance-x2i" in available_models:
+        results["x2i"] = test_x2i(base_url, args.timeout, args.seed)
+    else:
+        print(f"{SKIP}  POST /v1/chat/completions  [lance-x2i  – Any→Image]  (pipeline non caricata)")
+        results["x2i"] = None
     # ── Riepilogo ─────────────────────────────────────────────────────────
     print("\n" + "=" * 65)
     passed = sum(1 for v in results.values() if v is True)

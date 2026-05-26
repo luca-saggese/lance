@@ -10,6 +10,8 @@ Task supportati (selezionati tramite il campo 'model' nella richiesta):
   lance-v2v   : Video Editing  (instruction + video di input → video)
   lance-i2t   : Image Understanding (immagine + domanda → testo)
   lance-v2t   : Video Understanding (video + domanda → testo)
+  lance-x2v   : Any-to-Video  (testo + mix arbitrario di immagini/video → video)
+  lance-x2i   : Any-to-Image  (testo + mix arbitrario di immagini/video → immagine)
 
 Formato input (OpenAI chat completions):
   {
@@ -124,8 +126,10 @@ from inference_lance import (
     TASK_T2V,
     TASK_TI2V,
     TASK_VIDEO_EDIT,
+    TASK_X2I,
     TASK_X2T_IMAGE,
     TASK_X2T_VIDEO,
+    TASK_X2V,
     apply_inference_defaults,
     clean_memory,
     init_from_model_path_if_needed,
@@ -161,8 +165,8 @@ DEFAULT_CFG_TEXT_SCALE = 4.0
 USE_KVCACHE = True
 TEXT_TEMPLATE = True
 
-IMAGE_TASKS = {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2T_IMAGE}
-VIDEO_TASKS = {TASK_T2V, TASK_VIDEO_EDIT, TASK_X2T_VIDEO, TASK_TI2V}
+IMAGE_TASKS = {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2T_IMAGE, TASK_X2I}
+VIDEO_TASKS = {TASK_T2V, TASK_VIDEO_EDIT, TASK_X2T_VIDEO, TASK_TI2V, TASK_X2V}
 
 # Default resolution per task
 TASK_DEFAULTS: Dict[str, Dict[str, Any]] = {
@@ -207,6 +211,18 @@ TASK_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "video_height": 480,
         "video_width": 848,
         "num_frames": 50,
+    },
+    TASK_X2V: {
+        "resolution": "video_480p",
+        "video_height": 480,
+        "video_width": 848,
+        "num_frames": 50,
+    },
+    TASK_X2I: {
+        "resolution": "image_768res",
+        "video_height": 768,
+        "video_width": 768,
+        "num_frames": 1,
     },
 }
 
@@ -539,6 +555,8 @@ _MODEL_TO_TASK: Dict[str, str] = {
     "lance-x2t-image": TASK_X2T_IMAGE,
     "lance-v2t": TASK_X2T_VIDEO,
     "lance-x2t-video": TASK_X2T_VIDEO,
+    "lance-x2v": TASK_X2V,
+    "lance-x2i": TASK_X2I,
 }
 
 
@@ -622,6 +640,7 @@ def build_prompt_file(
     num_frames: int = 50,
     height: int = 480,
     width: int = 848,
+    media_items: Optional[List[tuple]] = None,
 ) -> Path:
     """
     Crea il file JSON di input compatibile con ValidationDataset.
@@ -699,6 +718,54 @@ def build_prompt_file(
                 "interleave_array": [prompt, str(media_path), vid_str],
                 "element_dtype_array": ["text", "image", "video"],
                 "istarget_in_interleave": [0, 0, 1],
+            }
+        }
+
+    elif task == TASK_X2V:
+        # media_items: lista di (path, dtype) con dtype in {"image", "video"}
+        if not media_items:
+            raise ValueError("x2v richiede almeno un media in input.")
+        interleave = [prompt] + [str(p) for p, _ in media_items]
+        dtypes = ["text"] + [dt for _, dt in media_items]
+        istarget = [0] * len(interleave)
+        # Target: ultimo video disponibile, o ultimo media come fallback
+        target_path, target_dtype = media_items[-1]
+        for p, dt in reversed(media_items):
+            if dt == "video":
+                target_path, target_dtype = p, dt
+                break
+        interleave.append(str(target_path))
+        dtypes.append(target_dtype)
+        istarget.append(1)
+        payload = {
+            "000000": {
+                "interleave_array": interleave,
+                "element_dtype_array": dtypes,
+                "istarget_in_interleave": istarget,
+            }
+        }
+
+    elif task == TASK_X2I:
+        # media_items: lista di (path, dtype) con dtype in {"image", "video"}
+        if not media_items:
+            raise ValueError("x2i richiede almeno un media in input.")
+        interleave = [prompt] + [str(p) for p, _ in media_items]
+        dtypes = ["text"] + [dt for _, dt in media_items]
+        istarget = [0] * len(interleave)
+        # Target: ultima immagine disponibile, o ultimo media come fallback
+        target_path, target_dtype = media_items[-1]
+        for p, dt in reversed(media_items):
+            if dt == "image":
+                target_path, target_dtype = p, dt
+                break
+        interleave.append(str(target_path))
+        dtypes.append(target_dtype)
+        istarget.append(1)
+        payload = {
+            "000000": {
+                "interleave_array": interleave,
+                "element_dtype_array": dtypes,
+                "istarget_in_interleave": istarget,
             }
         }
 
@@ -991,6 +1058,7 @@ class LancePipeline:
         cfg_text_scale: float,
         use_kvcache: bool,
         reference_video_path: Optional[Path] = None,
+        media_items: Optional[List[tuple]] = None,
     ) -> Dict[str, Any]:
         """
         Esegue l'inferenza e restituisce un dizionario con:
@@ -1031,6 +1099,7 @@ class LancePipeline:
                     num_frames=num_frames or TASK_DEFAULTS[task]["num_frames"],
                     height=height or TASK_DEFAULTS[task]["video_height"],
                     width=width or TASK_DEFAULTS[task]["video_width"],
+                    media_items=media_items,
                 )
 
                 # Costruisci model/data/inference args per questa richiesta
@@ -1105,12 +1174,12 @@ class LancePipeline:
                             text_out = next(iter(data.values()), "")
                     result["text"] = text_out
 
-                elif task in {TASK_T2I, TASK_IMAGE_EDIT}:
+                elif task in {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2I}:
                     # Immagini
                     images = sorted(save_dir.glob("*.png"), key=lambda p: p.stat().st_mtime)
                     result["images"] = [encode_file_as_data_url(img) for img in images]
 
-                elif task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V}:
+                elif task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V, TASK_X2V}:
                     # Video
                     videos = sorted(save_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
                     result["videos"] = [encode_file_as_data_url(vid) for vid in videos]
@@ -1192,10 +1261,10 @@ async def list_models():
     """Elenca i modelli disponibili (OpenAI-compatibile)."""
     available = []
     if _image_pipeline is not None:
-        for name in ["lance-t2i", "lance-i2i", "lance-i2t"]:
+        for name in ["lance-t2i", "lance-i2i", "lance-i2t", "lance-x2i"]:
             available.append({"id": name, "object": "model", "owned_by": "bytedance"})
     if _video_pipeline is not None:
-        for name in ["lance-t2v", "lance-ti2v", "lance-v2v", "lance-v2t"]:
+        for name in ["lance-t2v", "lance-ti2v", "lance-v2v", "lance-v2t", "lance-x2v"]:
             available.append({"id": name, "object": "model", "owned_by": "bytedance"})
     return {"object": "list", "data": available}
 
@@ -1272,6 +1341,7 @@ async def chat_completions(request: Request):
     tmp_media_dir.mkdir(parents=True, exist_ok=True)
     media_path: Optional[Path] = None
     reference_video_path: Optional[Path] = None
+    media_items: Optional[List[tuple]] = None
 
     try:
         if task in {TASK_IMAGE_EDIT, TASK_X2T_IMAGE} and image_urls:
@@ -1284,6 +1354,18 @@ async def chat_completions(request: Request):
             # Secondo video_url opzionale usato come riferimento di shape
             if video_urls:
                 reference_video_path = resolve_media(video_urls[0], "video", tmp_media_dir)
+        elif task in {TASK_X2V, TASK_X2I}:
+            # Raccoglie tutti i media nell'ordine in cui appaiono nel messaggio
+            media_items = []
+            for part in content_parts:
+                if part.type == "image_url" and part.image_url:
+                    p = resolve_media(part.image_url.url, "image", tmp_media_dir)
+                    media_items.append((p, "image"))
+                elif part.type == "video_url" and part.video_url:
+                    p = resolve_media(part.video_url.url, "video", tmp_media_dir)
+                    media_items.append((p, "video"))
+            if not media_items:
+                raise ValueError(f"{task} richiede almeno un media in input.")
     except Exception as exc:
         shutil.rmtree(tmp_media_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Errore nella risoluzione del media: {exc}") from exc
@@ -1357,6 +1439,7 @@ async def chat_completions(request: Request):
                 cfg_text_scale=cfg_scale,
                 use_kvcache=use_kvcache,
                 reference_video_path=reference_video_path,
+                media_items=media_items,
             ),
         )
     except Exception as exc:
