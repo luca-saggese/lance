@@ -728,12 +728,18 @@ def build_prompt_file(
         interleave = [prompt] + [str(p) for p, _ in media_items]
         dtypes = ["text"] + [dt for _, dt in media_items]
         istarget = [0] * len(interleave)
-        # Target: ultimo video disponibile, o ultimo media come fallback
+        # Target: ultimo video disponibile; se non c'è nessun video, crea un
+        # placeholder MP4 dall'ultima immagine disponibile.
         target_path, target_dtype = media_items[-1]
         for p, dt in reversed(media_items):
             if dt == "video":
                 target_path, target_dtype = p, dt
                 break
+        if target_dtype != "video":
+            # Nessun video tra i media_items: genera un placeholder dalla last image
+            placeholder = save_dir / "x2v_placeholder.mp4"
+            create_placeholder_video(target_path, num_frames, height, width, placeholder)
+            target_path, target_dtype = placeholder, "video"
         interleave.append(str(target_path))
         dtypes.append(target_dtype)
         istarget.append(1)
