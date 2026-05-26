@@ -21,3 +21,4 @@ RUN    pip install fastapi uvicorn
 EXPOSE 8000
 
 CMD ["python", "lance_openai_server.py"]
+#docker run --rm -ti --gpus all -p 8088:8000 lance
