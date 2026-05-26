@@ -207,6 +207,55 @@ I2T_SYSTEM_PROMPT = "Look at the image carefully and answer the question."
 V2T_SYSTEM_PROMPT = "Watch the video carefully and answer the question."
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Tabelle aspect ratio e image_size (compatibili OpenRouter image_config)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Mappa aspect_ratio → (height, width) per task immagine (base 768 px).
+# La notazione W:H segue la convenzione OpenRouter.
+ASPECT_RATIO_IMAGE_HW: Dict[str, tuple] = {
+    "1:1":  (768, 768),
+    "2:3":  (768, 512),   # portrait
+    "3:2":  (512, 768),   # landscape
+    "3:4":  (768, 576),   # portrait
+    "4:3":  (576, 768),   # landscape
+    "4:5":  (768, 616),   # portrait  (768 × 4/5 ≈ 614 → 616 = 77×8)
+    "5:4":  (616, 768),   # landscape
+    "9:16": (768, 432),   # portrait  (768 × 9/16 = 432)
+    "16:9": (432, 768),   # landscape
+    "21:9": (328, 768),   # ultra-wide (768 × 9/21 ≈ 329 → 328 = 41×8)
+    "1:4":  (768, 192),   # tall portrait (extended)
+    "4:1":  (192, 768),   # wide landscape (extended)
+    "1:8":  (768,  96),   # extreme portrait (extended)
+    "8:1":  ( 96, 768),   # extreme landscape (extended)
+}
+
+# Mappa aspect_ratio → (height, width) per task video (base video_480p, 16:9 = 480×848).
+ASPECT_RATIO_VIDEO_HW: Dict[str, tuple] = {
+    "1:1":  (480,  480),
+    "2:3":  (720,  480),   # portrait
+    "3:2":  (480,  720),   # landscape
+    "3:4":  (640,  480),   # portrait
+    "4:3":  (480,  640),   # landscape
+    "4:5":  (600,  480),   # portrait
+    "5:4":  (480,  600),   # landscape
+    "9:16": (848,  480),   # portrait
+    "16:9": (480,  848),   # landscape (default)
+    "21:9": (480, 1120),   # ultra-wide
+    "1:4":  (960,  240),   # tall portrait
+    "4:1":  (240,  960),   # wide landscape
+    "1:8":  (960,  120),   # extreme portrait
+    "8:1":  (120,  960),   # extreme landscape
+}
+
+# Moltiplicatore dimensioni per image_size
+IMAGE_SIZE_MULTIPLIERS: Dict[str, float] = {
+    "0.5K": 0.5,
+    "1K":   1.0,
+    "2K":   1.333,   # ~1024/768
+    "4K":   2.0,     # 1536/768
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Download automatico dei modelli
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -327,11 +376,51 @@ class Message(BaseModel):
     content: Union[str, List[ContentPart]] = ""
 
 
+class ImageConfig(BaseModel):
+    """Parametri di configurazione immagine (compatibile OpenRouter image_config)."""
+
+    # Aspect ratio: "1:1", "16:9", "9:16", "2:3", "3:2", "3:4", "4:3",
+    #               "4:5", "5:4", "21:9", "1:4", "4:1", "1:8", "8:1"
+    aspect_ratio: Optional[str] = None
+
+    # Risoluzione: "0.5K", "1K", "2K", "4K"
+    image_size: Optional[str] = None
+
+    # Forza di deviazione dall'immagine input (0.0–1.0), per i2i
+    strength: Optional[float] = None
+
+    # Posizionamento testo (Recraft V3) – accettato per compat., non usato
+    text_layout: Optional[List[Any]] = None
+
+    # Stile artistico (Recraft V3) – accettato per compat., non usato
+    style: Optional[str] = None
+
+    # Palette colori RGB [[r,g,b], ...] – accettato per compat., non usato
+    rgb_colors: Optional[List[List[int]]] = None
+
+    # Colore di sfondo [r,g,b] – accettato per compat., non usato
+    background_rgb_color: Optional[List[int]] = None
+
+    # Font personalizzati (Sourceful) – accettato per compat., non usato
+    font_inputs: Optional[List[Any]] = None
+
+    # Riferimenti super-resolution (Sourceful) – accettato per compat., non usato
+    super_resolution_references: Optional[List[str]] = None
+
+    model_config = {"extra": "allow"}
+
+
 class ChatCompletionRequest(BaseModel):
     model: str = "lance"
     # Supporta sia "messages" (OpenAI standard) sia "input" (Responses API)
     messages: Optional[List[Message]] = None
     input: Optional[List[Message]] = None
+
+    # Modalità di output: ["image"], ["video"], ["text"], ["image","text"], ecc.
+    modalities: Optional[List[str]] = None
+
+    # Configurazione immagine/video (compatibile OpenRouter image_config)
+    image_config: Optional[ImageConfig] = None
 
     # Parametri di generazione opzionali
     seed: Optional[int] = None
@@ -448,22 +537,39 @@ def detect_task(
     model_name: str,
     has_image: bool,
     has_video: bool,
+    modalities: Optional[List[str]] = None,
 ) -> str:
     """
-    Determina il task da eseguire in base al nome del modello e ai media in input.
-    Fallback automatico quando il modello è generico ("lance", "lance-3b", ecc.).
+    Determina il task da eseguire in base al nome del modello, ai media in input
+    e al parametro ``modalities`` (es. ["image"], ["video"], ["text"]).
+
+    Priorità:
+    1. Nome modello esplicito (es. "lance-t2i") → usa la mappa diretta.
+    2. ``modalities`` indica il tipo di *output* desiderato.
+    3. Fallback automatico dal contenuto (immagini/video presenti → editing/understanding).
     """
     model_lower = model_name.strip().lower()
-
     if model_lower in _MODEL_TO_TASK:
         return _MODEL_TO_TASK[model_lower]
 
-    # Auto-detection dal contenuto
+    # Analisi modalities
+    wants_text = modalities is not None and "text" in modalities
+    wants_image = modalities is not None and "image" in modalities
+    wants_video = modalities is not None and "video" in modalities
+
     if has_video:
-        return TASK_X2T_VIDEO  # default quando c'è solo video senza tag esplicito
+        if wants_text and not wants_image and not wants_video:
+            return TASK_X2T_VIDEO
+        return TASK_VIDEO_EDIT
+
     if has_image:
-        return TASK_X2T_IMAGE  # default quando c'è solo immagine
-    # Solo testo: text-to-image di default
+        if wants_text and not wants_image and not wants_video:
+            return TASK_X2T_IMAGE
+        return TASK_IMAGE_EDIT
+
+    # Solo testo in input
+    if wants_video:
+        return TASK_T2V
     return TASK_T2I
 
 
@@ -1071,6 +1177,7 @@ async def chat_completions(req: ChatCompletionRequest):
         model_name=req.model,
         has_image=bool(image_urls),
         has_video=bool(video_urls),
+        modalities=req.modalities,
     )
 
     # ── Salva media in file temporanei ─────────────────────────────────────
@@ -1099,6 +1206,34 @@ async def chat_completions(req: ChatCompletionRequest):
     timestep_shift = req.timestep_shift if req.timestep_shift is not None else DEFAULT_TIMESTEP_SHIFT
     cfg_scale = req.cfg_scale if req.cfg_scale is not None else DEFAULT_CFG_TEXT_SCALE
     use_kvcache = req.use_kvcache if req.use_kvcache is not None else USE_KVCACHE
+
+    # ── Applica image_config (aspect_ratio / image_size) ──────────────────
+    if req.image_config is not None:
+        ic = req.image_config
+
+        # aspect_ratio → height/width (solo se non impostati esplicitamente)
+        if req.video_height is None and req.video_width is None and ic.aspect_ratio is not None:
+            hw_map = ASPECT_RATIO_IMAGE_HW if task in IMAGE_TASKS else ASPECT_RATIO_VIDEO_HW
+            if ic.aspect_ratio in hw_map:
+                height, width = hw_map[ic.aspect_ratio]
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"aspect_ratio '{ic.aspect_ratio}' non supportato. "
+                           f"Valori validi: {sorted(hw_map)}",
+                )
+
+        # image_size → scala le dimensioni (arrotonda al multiplo di 8)
+        if ic.image_size is not None:
+            if ic.image_size not in IMAGE_SIZE_MULTIPLIERS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"image_size '{ic.image_size}' non supportato. "
+                           f"Valori validi: {sorted(IMAGE_SIZE_MULTIPLIERS)}",
+                )
+            scale = IMAGE_SIZE_MULTIPLIERS[ic.image_size]
+            height = max(8, round(height * scale / 8) * 8)
+            width  = max(8, round(width  * scale / 8) * 8)
 
     # Per i task di understanding, "question" = tutto il testo
     # Per i task di generazione/editing, "prompt" = tutto il testo
@@ -1145,14 +1280,24 @@ async def chat_completions(req: ChatCompletionRequest):
     elif "images" in result:
         message_content["content"] = None
         message_content["images"] = [
-            {"imageUrl": {"url": url}} for url in result.get("images", [])
+            {
+                "type": "image_url",
+                "image_url": {"url": url},   # snake_case – OpenRouter raw API / Python
+                "imageUrl":  {"url": url},   # camelCase – OpenRouter TypeScript SDK
+            }
+            for url in result.get("images", [])
         ]
         message_content["videos"] = None
     elif "videos" in result:
         message_content["content"] = None
         message_content["images"] = None
         message_content["videos"] = [
-            {"videoUrl": {"url": url}} for url in result.get("videos", [])
+            {
+                "type": "video_url",
+                "video_url": {"url": url},   # snake_case
+                "videoUrl":  {"url": url},   # camelCase
+            }
+            for url in result.get("videos", [])
         ]
     else:
         message_content["content"] = None
