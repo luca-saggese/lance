@@ -9,7 +9,6 @@ cffi==1.17.1
 charset-normalizer==3.4.0
 click==8.3.3
 Cython==3.0.11
-# decord==0.6.0
 einops==0.8.1
 einops-exts==0.0.4
 filelock==3.16.1
@@ -24,7 +23,7 @@ joblib==1.4.2
 kornia==0.8.2
 librosa==0.10.2.post1
 markupsafe==2.1.5
-# numpy==1.23.5
+numpy==1.23.5
 omegaconf==2.3.0
 opencv-python==4.7.0.72
 opt_einsum==3.4.0
