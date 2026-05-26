@@ -28,4 +28,4 @@ with open('requirements.txt') as f:
     missing = [req.strip() for req in f if req.strip() and should_install(req.strip())]
 
 if missing:
-    subprocess.run([sys.executable, '-m', 'pip', 'install'] + missing)x
+    subprocess.run([sys.executable, '-m', 'pip', 'install'] + missing)
