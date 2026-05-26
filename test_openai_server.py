@@ -14,11 +14,7 @@ Esempio:
 import argparse
 import base64
 import json
-import struct
-import subprocess
 import sys
-import tempfile
-import zlib
 from pathlib import Path
 
 try:
@@ -27,6 +23,9 @@ except ImportError:
     sys.exit("Dipendenza mancante: installa 'requests'  →  pip install requests")
 
 OUTPUT_DIR = Path("test_outputs")
+INPUT_DIR = Path("test_input")
+INPUT_IMAGE = INPUT_DIR / "t2i.png"
+INPUT_VIDEO = INPUT_DIR / "t2v.mp4"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -45,59 +44,18 @@ def _result(ok: bool, label: str, detail: str = "") -> None:
     print(msg)
 
 
-def _png_1x1(r: int = 100, g: int = 149, b: int = 237) -> bytes:
-    """Genera un PNG 1×1 RGB in puro Python (nessuna dipendenza esterna)."""
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
-
-    sig = b"\x89PNG\r\n\x1a\n"
-    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
-    raw_row = b"\x00" + bytes([r, g, b])
-    idat = chunk(b"IDAT", zlib.compress(raw_row))
-    iend = chunk(b"IEND", b"")
-    return sig + ihdr + idat + iend
+def _file_to_data_uri(path: Path, mime: str) -> str:
+    """Legge un file da disco e lo restituisce come data URI base64."""
+    raw = path.read_bytes()
+    return f"data:{mime};base64," + base64.b64encode(raw).decode()
 
 
-def _png_b64() -> str:
-    return "data:image/png;base64," + base64.b64encode(_png_1x1()).decode()
+def _input_image_b64() -> str:
+    return _file_to_data_uri(INPUT_IMAGE, "image/png")
 
 
-def _make_mp4_b64() -> str | None:
-    """
-    Crea un breve video MP4 (3 frame, 1×1 px) tramite ffmpeg.
-    Restituisce il data URI base64, o None se ffmpeg non è disponibile.
-    """
-    try:
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
-        if result.returncode != 0:
-            return None
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-f", "lavfi",
-                "-i", "color=c=blue:size=64x64:rate=1:duration=3",
-                "-pix_fmt", "yuv420p",
-                "-t", "3",
-                tmp_path,
-            ],
-            capture_output=True,
-            timeout=30,
-            check=True,
-        )
-        raw = Path(tmp_path).read_bytes()
-        return "data:video/mp4;base64," + base64.b64encode(raw).decode()
-    except Exception:
-        return None
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+def _input_video_b64() -> str:
+    return _file_to_data_uri(INPUT_VIDEO, "video/mp4")
 
 
 def _post(base_url: str, payload: dict, timeout: int) -> requests.Response:
@@ -230,14 +188,17 @@ def test_t2v(base_url: str, timeout: int, seed: int) -> bool:
 
 
 def test_i2i(base_url: str, timeout: int, seed: int) -> bool:
+    if not INPUT_IMAGE.exists():
+        _result(False, "POST /v1/chat/completions  [lance-i2i  – Image→Image]", f"File non trovato: {INPUT_IMAGE}")
+        return False
     payload = {
         "model": "lance-i2i",
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Make the sky pink"},
-                    {"type": "image_url", "image_url": {"url": _png_b64()}},
+                    {"type": "text", "text": "Turn the sunset sky into a dramatic stormy sky"},
+                    {"type": "image_url", "image_url": {"url": _input_image_b64()}},
                 ],
             }
         ],
@@ -255,14 +216,17 @@ def test_i2i(base_url: str, timeout: int, seed: int) -> bool:
 
 
 def test_i2t(base_url: str, timeout: int, seed: int) -> bool:
+    if not INPUT_IMAGE.exists():
+        _result(False, "POST /v1/chat/completions  [lance-i2t  – Image→Text]", f"File non trovato: {INPUT_IMAGE}")
+        return False
     payload = {
         "model": "lance-i2t",
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "What color dominates this image?"},
-                    {"type": "image_url", "image_url": {"url": _png_b64()}},
+                    {"type": "text", "text": "Describe this image in detail"},
+                    {"type": "image_url", "image_url": {"url": _input_image_b64()}},
                 ],
             }
         ],
@@ -278,15 +242,18 @@ def test_i2t(base_url: str, timeout: int, seed: int) -> bool:
         return False
 
 
-def test_v2v(base_url: str, timeout: int, seed: int, video_b64: str) -> bool:
+def test_v2v(base_url: str, timeout: int, seed: int) -> bool:
+    if not INPUT_VIDEO.exists():
+        _result(False, "POST /v1/chat/completions  [lance-v2v  – Video→Video]", f"File non trovato: {INPUT_VIDEO}")
+        return False
     payload = {
         "model": "lance-v2v",
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Add a golden glow effect"},
-                    {"type": "video_url", "video_url": {"url": video_b64}},
+                    {"type": "text", "text": "Make the bird fly in slow motion over a golden ocean at sunset"},
+                    {"type": "video_url", "video_url": {"url": _input_video_b64()}},
                 ],
             }
         ],
@@ -304,15 +271,18 @@ def test_v2v(base_url: str, timeout: int, seed: int, video_b64: str) -> bool:
         return False
 
 
-def test_v2t(base_url: str, timeout: int, seed: int, video_b64: str) -> bool:
+def test_v2t(base_url: str, timeout: int, seed: int) -> bool:
+    if not INPUT_VIDEO.exists():
+        _result(False, "POST /v1/chat/completions  [lance-v2t  – Video→Text]", f"File non trovato: {INPUT_VIDEO}")
+        return False
     payload = {
         "model": "lance-v2t",
         "messages": [
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Describe what happens in this video"},
-                    {"type": "video_url", "video_url": {"url": video_b64}},
+                    {"type": "text", "text": "Describe what the bird is doing in this video"},
+                    {"type": "video_url", "video_url": {"url": _input_video_b64()}},
                 ],
             }
         ],
@@ -382,14 +352,6 @@ def main() -> None:
         print(f"{SKIP}  POST /v1/chat/completions  [lance-i2t  – Image→Text]  (pipeline non caricata)")
         results["i2t"] = None
 
-    # ── Prepara video per i test video ────────────────────────────────────
-    needs_video = any(m in available_models for m in ("lance-t2v", "lance-v2v", "lance-v2t"))
-    video_b64: str | None = None
-    if needs_video:
-        print("\nCreazione video di test con ffmpeg...", end=" ", flush=True)
-        video_b64 = _make_mp4_b64()
-        print("ok" if video_b64 else "ffmpeg non trovato, test video saltati")
-
     print()
 
     # ── 6. Text-to-Video ──────────────────────────────────────────────────
@@ -401,22 +363,14 @@ def main() -> None:
 
     # ── 7. Video→Video ────────────────────────────────────────────────────
     if "lance-v2v" in available_models:
-        if video_b64:
-            results["v2v"] = test_v2v(base_url, args.timeout, args.seed, video_b64)
-        else:
-            print(f"{SKIP}  POST /v1/chat/completions  [lance-v2v  – Video→Video]  (ffmpeg non disponibile)")
-            results["v2v"] = None
+        results["v2v"] = test_v2v(base_url, args.timeout, args.seed)
     else:
         print(f"{SKIP}  POST /v1/chat/completions  [lance-v2v  – Video→Video]  (pipeline non caricata)")
         results["v2v"] = None
 
     # ── 8. Video→Text ─────────────────────────────────────────────────────
     if "lance-v2t" in available_models:
-        if video_b64:
-            results["v2t"] = test_v2t(base_url, args.timeout, args.seed, video_b64)
-        else:
-            print(f"{SKIP}  POST /v1/chat/completions  [lance-v2t  – Video→Text]  (ffmpeg non disponibile)")
-            results["v2t"] = None
+        results["v2t"] = test_v2t(base_url, args.timeout, args.seed)
     else:
         print(f"{SKIP}  POST /v1/chat/completions  [lance-v2t  – Video→Text]  (pipeline non caricata)")
         results["v2t"] = None
