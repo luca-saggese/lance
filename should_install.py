@@ -25,7 +25,9 @@ def should_install(req):
     return True
 
 with open('requirements.txt') as f:
-    missing = [req.strip() for req in f if req.strip() and should_install(req.strip())]
+    # missing = [req.strip() for req in f if req.strip() and should_install(req.strip())]
+    for package in missing:
+        subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-deps', package])
 
 if missing:
     subprocess.run([sys.executable, '-m', 'pip', 'install'] + missing)
