@@ -1118,6 +1118,15 @@ def get_pipeline_for_task(task: str) -> LancePipeline:
 @app.get("/health")
 async def health():
     """Health check."""
+    try:
+        print(f"[lance_server][debug] response message_content keys: {list(message_content.keys())}", flush=True)
+        if message_content.get("videos"):
+            print(f"[lance_server][debug] videos count: {len(message_content.get('videos'))}", flush=True)
+        if message_content.get("images"):
+            print(f"[lance_server][debug] images count: {len(message_content.get('images'))}", flush=True)
+    except Exception:
+        pass
+
     return {
         "status": "ok",
         "image_pipeline": _image_pipeline.initialized if _image_pipeline else False,
@@ -1139,11 +1148,35 @@ async def list_models():
 
 
 @app.post("/v1/chat/completions")
-async def chat_completions(req: ChatCompletionRequest):
+async def chat_completions(request: Request):
     """
     Endpoint principale compatibile OpenAI Chat Completions.
     Supporta t2i, t2v, i2i (image_edit), v2v (video_edit), i2t, v2t.
+    Questa versione legge esplicitamente il body per poter loggare il payload
+    (utile per debug quando campi come 'videos' risultano assenti).
     """
+    # Leggi il body grezzo e loggalo per debug
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    try:
+        print(
+            f"[lance_server][debug] /v1/chat/completions body: {json.dumps(body, ensure_ascii=False)[:2000]}",
+            flush=True,
+        )
+    except Exception:
+        print("[lance_server][debug] /v1/chat/completions body: <<unprintable>>", flush=True)
+
+    # Valida esplicitamente il payload usando il modello Pydantic per ottenere
+    # messaggi strutturati e messaggi di errore chiari.
+    try:
+        req = ChatCompletionRequest.model_validate(body or {})
+    except Exception as exc:
+        # Mostra l'errore di validazione nei log per facilitare il debug client-side
+        print(f"[lance_server][error] Request validation failed: {exc}", flush=True)
+        raise HTTPException(status_code=400, detail=f"Request validation error: {exc}")
+
     # ── Normalizza messaggi ────────────────────────────────────────────────
     messages = req.messages or req.input or []
 
