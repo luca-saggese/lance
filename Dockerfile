@@ -17,6 +17,7 @@ RUN pip install packaging && \
     pip install "numpy<2" 
     
 RUN    pip install fastapi uvicorn
+RUN pip install "huggingface-hub<1"
 
 EXPOSE 8000
 
