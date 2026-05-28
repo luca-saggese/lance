@@ -1509,10 +1509,9 @@ class Lance(PreTrainedModel):
 
             # 2. 其次生成 vit uncond 特征 （可选）
             cfg_vision_pro = False
-            if cfg_vision_scale > 1.0 and "full" in current_attn_modes:
+            if cfg_vision_scale > 1.0 and "full" in current_attn_modes and apply_qwen_2_5_vl_pos_emb:
                 cfg_vision_pro = True
-                vision_uncond_mask =  i_sample_modality <= 1 # i_sample_modality!=4  则为 cfg_vit
-                _, vision_uncond_pos_ids, _ = self.uncond_split_pro_kvcache(vision_uncond_mask, current_text_ids, device, dtype, apply_qwen_2_5_vl_pos_emb, grid_thw_rope = grid_thw_rope[-N_target:], current_attn_modes=current_attn_modes, current_split_lens=current_split_lens, i_sample_task=i_sample_task, i_sample_modality=i_sample_modality ) # NOTE: grid_thw_rope 去掉 vit/vae condition 的项
+                # vision_uncond_pos_ids = current_pos_ids[VAE slice] — computed after current_pos_ids is available below
 
             for i_target in range(N_noise_element):
                 T, H, W = video_sizes[curr_vae_split_idx]  # ✅ 尺寸用 gen_idx 索引，保证与“GEN 样本序列顺序”一致
@@ -1682,8 +1681,7 @@ class Lance(PreTrainedModel):
                 gen_context = self.update_gen_context(current_sequence, current_pos_ids, gen_context, extra_inputs, current_cond_start, current_cond_end, current_cond_len, device, dtype, is_causal = is_causal)
                 if cfg_text_scale > 1.0 and i_sample_modality[current_cond_start] != 0:
                     cfg_text_context = self.update_gen_context(current_sequence, current_pos_ids, cfg_text_context, extra_inputs, current_cond_start, current_cond_end, current_cond_len, device, dtype, is_causal = is_causal)
-                if cfg_vision_scale > 1.0 and i_sample_modality[current_cond_start] > 1: # i_sample_modality[current_cond_start] != 4 则为 cfg_vit
-                    cfg_vision_context = self.update_gen_context(current_sequence, current_pos_ids, cfg_vision_context, extra_inputs, current_cond_start, current_cond_end, current_cond_len, device, dtype, is_causal = is_causal)
+                # cfg_vision_context intentionally stays empty (kv_lens=0): v_text_vit_uncond needs no cached context
 
                 current_cond_start = current_cond_end
 
@@ -1753,14 +1751,16 @@ class Lance(PreTrainedModel):
                         cfg_text_v_t = cfg_text_v_t[target_packed_vae_token_indexes]
 
                         if cfg_vision_pro:
+                            # v_text_vit_uncond: no text, no VIT in context → empty KV, VAE query only.
+                            # Use VAE token positions from current_pos_ids; query indexes are 0-based (empty cache).
                             cfg_vision_output = self.language_model.forward_inference(
                                 packed_query_sequence=packed_sequence_vae,
                                 query_lens=torch.tensor([packed_seqlens_vae],dtype=torch.int32, device=device),
-                                packed_query_position_ids=vision_uncond_pos_ids[:,:,cfg_vision_context['kv_lens'][0]:cfg_vision_context['kv_lens'][0]+packed_seqlens_vae],
-                                packed_query_indexes=vae_in_packed_sequence_index - sum(i_sample_modality==4), # 对应 packed_sequence_vae 在整个cfg序列中的index
-                                past_key_values=cfg_vision_context['past_key_values'],
-                                key_values_lens=cfg_vision_context['kv_lens'],
-                                packed_key_value_indexes=torch.arange(0,cfg_vision_context['kv_lens'][0], dtype=torch.int64, device=device),
+                                packed_query_position_ids=current_pos_ids[:,:,current_cond_start:current_cond_end],
+                                packed_query_indexes=torch.arange(0, packed_seqlens_vae, dtype=torch.long, device=device),
+                                past_key_values=cfg_vision_context['past_key_values'],  # empty KV
+                                key_values_lens=cfg_vision_context['kv_lens'],  # 0
+                                packed_key_value_indexes=torch.arange(0, cfg_vision_context['kv_lens'][0], dtype=torch.int64, device=device),
                                 update_past_key_values=False,
                                 is_causal=False,
                                 **extra_inputs_vae,
