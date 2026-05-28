@@ -26,6 +26,7 @@ OUTPUT_DIR = Path("test_outputs")
 INPUT_DIR = Path("test_input")
 INPUT_IMAGE = INPUT_DIR / "t2i.png"
 INPUT_VIDEO = INPUT_DIR / "t2v.mp4"
+INPUT_VIDEO_EDIT = Path("config/examples/video_edit_examples/edit_source_car.mp4")
 INPUT_GIRL   = INPUT_DIR / "girl.png"
 INPUT_FLOWER = INPUT_DIR / "flower.png"
 INPUT_HAT    = INPUT_DIR / "hat.jpeg"
@@ -59,6 +60,10 @@ def _input_image_b64() -> str:
 
 def _input_video_b64() -> str:
     return _file_to_data_uri(INPUT_VIDEO, "video/mp4")
+
+
+def _input_video_edit_b64() -> str:
+    return _file_to_data_uri(INPUT_VIDEO_EDIT, "video/mp4")
 
 
 def _input_girl_b64() -> str:
@@ -267,8 +272,8 @@ def test_i2t(base_url: str, timeout: int, seed: int) -> bool:
 
 
 def test_v2v(base_url: str, timeout: int, seed: int) -> bool:
-    if not INPUT_VIDEO.exists():
-        _result(False, "POST /v1/chat/completions  [lance-v2v  – Video→Video]", f"File non trovato: {INPUT_VIDEO}")
+    if not INPUT_VIDEO_EDIT.exists():
+        _result(False, "POST /v1/chat/completions  [lance-v2v  – Video→Video]", f"File non trovato: {INPUT_VIDEO_EDIT}")
         return False
     payload = {
         "model": "lance-v2v",
@@ -276,14 +281,14 @@ def test_v2v(base_url: str, timeout: int, seed: int) -> bool:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "Make the bird fly in slow motion over a golden ocean at sunset"},
-                    {"type": "video_url", "video_url": {"url": _input_video_b64()}},
+                    {"type": "text", "text": "Make the car drive on a snowy road at dusk"},
+                    {"type": "video_url", "video_url": {"url": _input_video_edit_b64()}},
                 ],
             }
         ],
         "seed": seed,
         "num_timesteps": 5,
-        "num_frames": 9,
+        "num_frames": 25,
     }
     try:
         resp = _post(base_url, payload, timeout)

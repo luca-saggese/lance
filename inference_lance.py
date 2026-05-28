@@ -338,7 +338,7 @@ def validate_on_fixed_batch(
                 # For image/video tasks with conditions we only decode the final
                 # latent element, which is the generated target (the preceding
                 # elements are the VAE-encoded condition inputs).
-                if inference_args.task in {TASK_IMAGE_EDIT, TASK_X2I, TASK_TI2V, TASK_X2V}:
+                if inference_args.task in {TASK_IMAGE_EDIT, TASK_VIDEO_EDIT, TASK_X2I, TASK_TI2V, TASK_X2V}:
                     target_latents = [latent[-1]]
                 else:
                     target_latents = latent
