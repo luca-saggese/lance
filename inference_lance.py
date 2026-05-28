@@ -348,7 +348,7 @@ def validate_on_fixed_batch(
                     v_list.append(vae_model.vae_decode([latent_])[0])
 
                 save_item_name = f"{index:06d}" if isinstance(index, int) else index
-                print(f"[DEBUG][validate_on_fixed_batch] task={inference_args.task}  latent.shape={latent.shape}  target_latents count={len(target_latents)}", flush=True)
+                print(f"[DEBUG][validate_on_fixed_batch] task={inference_args.task}  latent is {type(latent).__name__} len={len(latent)}  target_latents count={len(target_latents)}", flush=True)
                 for li, lt in enumerate(target_latents):
                     print(f"[DEBUG][validate_on_fixed_batch]   target_latent[{li}].shape={lt.shape}", flush=True)
                 v_thwc = decode_video_tensor(v_list, save_path=save_path_gen, save_half=False, save_item_name=save_item_name)
