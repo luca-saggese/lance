@@ -69,6 +69,7 @@ def decode_video_tensor(video_tensor, video_type="vae", save_path="", save_half=
             v_thwc_save = v_thwc[:, :, w // 2:, :]
         else:
             v_thwc_save = v_thwc
+        print(f"[DEBUG][decode_video_tensor] v_thwc.shape={v_thwc.shape}  →  {'MP4' if v_thwc.shape[0] > 1 else 'PNG'}  (frames={v_thwc.shape[0]})", flush=True)
         if v_thwc.shape[0] > 1:  # 保存视频
             existing_files = glob.glob(f"{save_path}/*.mp4")
             if len(existing_files) > max_save_num:
@@ -81,7 +82,7 @@ def decode_video_tensor(video_tensor, video_type="vae", save_path="", save_half=
                 quit()
             save_path_i = f"{save_path}/{save_item_name}.png"
             imageio.imwrite(save_path_i, v_thwc_save[0], format="png")
-        print(f"video or image saved to {save_path_i}")
+        print(f"[DEBUG][decode_video_tensor] saved to {save_path_i}", flush=True)
     return v_thwc
 
 

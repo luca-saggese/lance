@@ -348,10 +348,15 @@ def validate_on_fixed_batch(
                     v_list.append(vae_model.vae_decode([latent_])[0])
 
                 save_item_name = f"{index:06d}" if isinstance(index, int) else index
+                print(f"[DEBUG][validate_on_fixed_batch] task={inference_args.task}  latent.shape={latent.shape}  target_latents count={len(target_latents)}", flush=True)
+                for li, lt in enumerate(target_latents):
+                    print(f"[DEBUG][validate_on_fixed_batch]   target_latent[{li}].shape={lt.shape}", flush=True)
                 v_thwc = decode_video_tensor(v_list, save_path=save_path_gen, save_half=False, save_item_name=save_item_name)
+                print(f"[DEBUG][validate_on_fixed_batch] decoded v_thwc.shape={v_thwc.shape}  (T={v_thwc.shape[0]})", flush=True)
 
                 # Treat tasks that are video generation/edit as video outputs.
                 is_video_task = inference_args.task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V, TASK_X2V}
+                print(f"[DEBUG][validate_on_fixed_batch] is_video_task={is_video_task}  frames={v_thwc.shape[0]}  → prompt_data_path will be {'mp4' if v_thwc.shape[0] > 1 or is_video_task else 'png'}", flush=True)
                 if v_thwc.shape[0] > 1 or is_video_task:
                     prompt_data_path = f"{save_item_name}.mp4"
                 else:

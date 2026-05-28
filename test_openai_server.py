@@ -101,6 +101,10 @@ def _check_generation_response(
         data = resp.json()
     except Exception:
         return False, "Risposta non è JSON valido"
+    # Stampa sempre le info di debug se presenti
+    debug_info = data.get("_debug")
+    if debug_info:
+        print(f"     [SERVER DEBUG] {json.dumps(debug_info, ensure_ascii=False)}")
     choices = data.get("choices", [])
     if not choices:
         return False, "Nessun elemento in 'choices'"
@@ -130,6 +134,10 @@ def _check_text_response(resp: requests.Response) -> tuple[bool, str]:
         data = resp.json()
     except Exception:
         return False, "Risposta non è JSON valido"
+    # Stampa sempre le info di debug se presenti
+    debug_info = data.get("_debug")
+    if debug_info:
+        print(f"     [SERVER DEBUG] {json.dumps(debug_info, ensure_ascii=False)}")
     choices = data.get("choices", [])
     if not choices:
         return False, "Nessun elemento in 'choices'"

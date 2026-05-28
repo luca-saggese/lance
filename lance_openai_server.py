@@ -1141,6 +1141,15 @@ class LancePipeline:
                     f"seed={seed} | {height}x{width} | frames={num_frames} | resolution={resolution}",
                     flush=True,
                 )
+                print(
+                    f"[DEBUG][lance_server.generate] inference_args.task={request_inference_args.task}"
+                    f"  num_frames={request_inference_args.num_frames}"
+                    f"  video_height={request_inference_args.video_height}"
+                    f"  video_width={request_inference_args.video_width}"
+                    f"  resolution={request_inference_args.resolution}"
+                    f"  media_path={media_path}  reference_video_path={reference_video_path}",
+                    flush=True,
+                )
                 t_start = time.perf_counter()
 
                 val_data_cpu = self._build_request_batch(
@@ -1172,8 +1181,25 @@ class LancePipeline:
                 elapsed = time.perf_counter() - t_start
                 print(f"[lance_server] Inferenza completata in {elapsed:.2f}s", flush=True)
 
+                # Raccoglie info di debug da includere nella response
+                all_files = list(save_dir.iterdir())
+                debug_info: Dict[str, Any] = {
+                    "task": task,
+                    "inference_args": {
+                        "num_frames": request_inference_args.num_frames,
+                        "video_height": request_inference_args.video_height,
+                        "video_width": request_inference_args.video_width,
+                        "resolution": request_inference_args.resolution,
+                        "validation_num_timesteps": request_inference_args.validation_num_timesteps,
+                    },
+                    "media_path": str(media_path) if media_path else None,
+                    "files_in_save_dir": [f.name for f in all_files],
+                    "elapsed_s": round(elapsed, 2),
+                }
+                print(f"[DEBUG][lance_server.generate] file in save_dir ({save_dir}): {debug_info['files_in_save_dir']}", flush=True)
+
                 # Leggi output
-                result: Dict[str, Any] = {}
+                result: Dict[str, Any] = {"_debug": debug_info}
 
                 if task in {TASK_X2T_IMAGE, TASK_X2T_VIDEO}:
                     # Testo
@@ -1195,6 +1221,13 @@ class LancePipeline:
                     videos = sorted(save_dir.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
                     result["videos"] = [encode_file_as_data_url(vid) for vid in videos]
 
+                print(
+                    f"[DEBUG][lance_server.generate] result keys={list(result.keys())}  " +
+                    (f"images count={len(result.get('images',[]))}" if 'images' in result else
+                     f"videos count={len(result.get('videos',[]))}" if 'videos' in result else
+                     f"text='{str(result.get('text',''))[:80]}'" if 'text' in result else "(empty)"),
+                    flush=True,
+                )
                 return result
 
             finally:
@@ -1357,6 +1390,12 @@ async def chat_completions(request: Request):
         has_video=bool(video_urls),
         modalities=req.modalities,
     )
+    print(
+        f"[DEBUG][chat_completions] model={req.model!r}  detected_task={task!r}"
+        f"  has_image={bool(image_urls)}  has_video={bool(video_urls)}"
+        f"  num_frames_req={req.num_frames}  resolution_req={req.resolution}",
+        flush=True,
+    )
 
     # ── Salva media in file temporanei ─────────────────────────────────────
     req_id = uuid.uuid4().hex
@@ -1509,6 +1548,7 @@ async def chat_completions(request: Request):
         "object": "chat.completion",
         "created": int(time.time()),
         "model": req.model,
+        "_debug": result.get("_debug"),
         "choices": [
             {
                 "index": 0,
