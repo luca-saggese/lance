@@ -17,9 +17,12 @@ import random
 from typing import List
 
 import torch
+import traceback
 
 
 def generate_system_prompt(system_prompt_type="caption", vision_type="video"):
+    print(f"[lance_server] Generazione system prompt per tipo: {system_prompt_type}, vision type: {vision_type}...")
+    traceback.print_stack()
     if system_prompt_type == "caption":
         str_list = [
             f"Generate a detailed and accurate description of the {vision_type}, including all the key moments and visual details.",
