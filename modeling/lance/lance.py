@@ -1501,6 +1501,12 @@ class Lance(PreTrainedModel):
 
             num_vid_tokens_list, vid_shape_list, vae_position_ids, curr_padded_latent = [], [], [], []
 
+            # --- Assign current_text_ids and grid_thw_rope early so they are
+            #     available in the cfg_vision_scale block below (before the
+            #     regular text/position-id sections that assign them later). ---
+            current_text_ids = val_packed_text_ids[sample_start_idx:sample_end_idx]
+            grid_thw_rope = video_grid_thw[i_sample] if apply_qwen_2_5_vl_pos_emb and video_grid_thw is not None else None
+
             # 2. 其次生成 vit uncond 特征 （可选）
             cfg_vision_pro = False
             if cfg_vision_scale > 1.0 and "full" in current_attn_modes:
