@@ -335,9 +335,10 @@ def validate_on_fixed_batch(
 
             # Decode.
             for i_val, latent in enumerate(denoise_latent):
-                # For image editing we only decode the final latent (single image).
-                # For video editing/generation we decode the full latent sequence.
-                if inference_args.task in {TASK_IMAGE_EDIT, TASK_X2I}:
+                # For image/video tasks with conditions we only decode the final
+                # latent element, which is the generated target (the preceding
+                # elements are the VAE-encoded condition inputs).
+                if inference_args.task in {TASK_IMAGE_EDIT, TASK_X2I, TASK_TI2V, TASK_X2V}:
                     target_latents = [latent[-1]]
                 else:
                     target_latents = latent
