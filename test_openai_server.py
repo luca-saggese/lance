@@ -199,7 +199,7 @@ def test_t2v(base_url: str, timeout: int, seed: int) -> bool:
         "messages": [{"role": "user", "content": "A bird flying over the ocean"}],
         "seed": seed,
         "num_timesteps": 5,
-        "num_frames": 9,
+        "num_frames": 25,
     }
     try:
         resp = _post(base_url, payload, timeout)
@@ -340,7 +340,7 @@ def test_ti2v(base_url: str, timeout: int, seed: int) -> bool:
         ],
         "seed": seed,
         "num_timesteps": 5,
-        "num_frames": 9,
+        "num_frames": 25,
     }
     try:
         resp = _post(base_url, payload, timeout)
@@ -374,7 +374,7 @@ def test_x2v(base_url: str, timeout: int, seed: int) -> bool:
         ],
         "seed": seed,
         "num_timesteps": 5,
-        "num_frames": 9,
+        "num_frames": 25,
     }
     try:
         resp = _post(base_url, payload, timeout)

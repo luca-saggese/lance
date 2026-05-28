@@ -304,6 +304,7 @@ def validate_on_fixed_batch(
                 "val_padded_latent": val_data["padded_latent"],
                 "video_sizes": val_data["video_sizes"],
                 "cfg_text_scale": model_args.cfg_text_scale,
+                "cfg_vit_scale": model_args.cfg_vit_scale,
                 "cfg_interval": training_args.cfg_interval,
                 "cfg_renorm_min": training_args.cfg_renorm_min,
                 "cfg_renorm_type": training_args.cfg_renorm_type,

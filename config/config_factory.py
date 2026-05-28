@@ -173,6 +173,7 @@ class ModelArguments:
     val_vit_cond_dropout_prob:  float = 0
 
     cfg_text_scale:             float = 4.0  # for validation
+    cfg_vit_scale:              float = 1.0  # >1.0 amplifies VIT image guidance (identity preservation)
 
 
 @dataclass

@@ -164,6 +164,8 @@ DEFAULT_VIT_TYPE = "qwen_2_5_vl_original"
 DEFAULT_TIMESTEPS = 30
 DEFAULT_TIMESTEP_SHIFT = 3.5
 DEFAULT_CFG_TEXT_SCALE = 4.0
+DEFAULT_CFG_VIT_SCALE = 1.0   # >1.0 amplifies VIT image guidance; 2.0 recommended for ti2v idip
+DEFAULT_CFG_VIT_SCALE_TI2V = 2.0  # default for lance-ti2v (identity-preserving)
 USE_KVCACHE = True
 TEXT_TEMPLATE = True
 
@@ -456,6 +458,7 @@ class ChatCompletionRequest(BaseModel):
     num_timesteps: Optional[int] = None
     timestep_shift: Optional[float] = None
     cfg_scale: Optional[float] = None
+    cfg_vit_scale: Optional[float] = None
     use_kvcache: Optional[bool] = None
 
     # Campi OpenAI standard ignorati ma accettati per compatibilità
@@ -1067,7 +1070,8 @@ class LancePipeline:
         validation_num_timesteps: int,
         validation_timestep_shift: float,
         cfg_text_scale: float,
-        use_kvcache: bool,
+        cfg_vit_scale: float = 1.0,
+        use_kvcache: bool = True,
         reference_video_path: Optional[Path] = None,
         media_items: Optional[List[tuple]] = None,
     ) -> Dict[str, Any]:
@@ -1116,6 +1120,7 @@ class LancePipeline:
                 # Costruisci model/data/inference args per questa richiesta
                 request_model_args = deepcopy(self.base_model_args)
                 request_model_args.cfg_text_scale = cfg_text_scale
+                request_model_args.cfg_vit_scale = cfg_vit_scale
 
                 request_data_args = DataArguments()
                 request_data_args.val_dataset_config_file = str(prompt_file)
@@ -1442,6 +1447,9 @@ async def chat_completions(request: Request):
     num_timesteps = req.num_timesteps if req.num_timesteps is not None else DEFAULT_TIMESTEPS
     timestep_shift = req.timestep_shift if req.timestep_shift is not None else DEFAULT_TIMESTEP_SHIFT
     cfg_scale = req.cfg_scale if req.cfg_scale is not None else DEFAULT_CFG_TEXT_SCALE
+    # For ti2v (identity-preserving) use a higher VIT guidance scale by default
+    _default_vit_scale = DEFAULT_CFG_VIT_SCALE_TI2V if task == TASK_TI2V else DEFAULT_CFG_VIT_SCALE
+    cfg_vit_scale = req.cfg_vit_scale if req.cfg_vit_scale is not None else _default_vit_scale
     use_kvcache = req.use_kvcache if req.use_kvcache is not None else USE_KVCACHE
 
     # ── Validazione num_frames per i task video ────────────────────────────
@@ -1515,6 +1523,7 @@ async def chat_completions(request: Request):
                 validation_num_timesteps=num_timesteps,
                 validation_timestep_shift=timestep_shift,
                 cfg_text_scale=cfg_scale,
+                cfg_vit_scale=cfg_vit_scale,
                 use_kvcache=use_kvcache,
                 reference_video_path=reference_video_path,
                 media_items=media_items,
