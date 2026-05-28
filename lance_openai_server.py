@@ -1444,6 +1444,22 @@ async def chat_completions(request: Request):
     cfg_scale = req.cfg_scale if req.cfg_scale is not None else DEFAULT_CFG_TEXT_SCALE
     use_kvcache = req.use_kvcache if req.use_kvcache is not None else USE_KVCACHE
 
+    # ── Validazione num_frames per i task video ────────────────────────────
+    # Il WAN VAE applica due stadi di downsampling temporale:
+    #   T_lat = floor((floor((T-3)/2)+1 - 3)/2) + 1
+    # Con T<11 → T_lat=1 → decode_video_tensor salva PNG invece di MP4.
+    _MIN_VIDEO_FRAMES = 11
+    if task in VIDEO_TASKS and num_frames < _MIN_VIDEO_FRAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"num_frames={num_frames} troppo basso per task video '{task}'. "
+                f"Il WAN VAE richiede almeno {_MIN_VIDEO_FRAMES} frame per produrre "
+                f"un latente temporale T_lat>1 (altrimenti l'output è un PNG). "
+                f"Usa num_frames≥{_MIN_VIDEO_FRAMES}; consigliato 4k+1 es. 25 o 49."
+            ),
+        )
+
     # ── Applica image_config (aspect_ratio / image_size) ──────────────────
     if req.image_config is not None:
         ic = req.image_config
