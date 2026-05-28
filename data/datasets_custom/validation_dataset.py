@@ -76,14 +76,6 @@ class ValidationDataset(Dataset):
         self.jsonl_path = jsonl_path
         self.tokenizer = tokenizer
         self.new_token_ids = new_token_ids
-        
-        self.data_config = dataset_config
-        self.system_prompt_type = self.data_config.system_prompt_type
-        self.sample_task = 'gen' # Inizializzo l'attributo
-
-        # Load data from JSON file
-        self.data = self.load_from_json(jsonl_path)
-
 
         # 读取JSONL文件
         try:
@@ -170,6 +162,8 @@ class ValidationDataset(Dataset):
             self.system_prompt_type = self.data_config.system_prompt_type
         else:
             self.system_prompt_type = 'SP0'
+
+        self.sample_task = 'gen'  # default; overridden by tv2v_sample / tiv2v_sample callers
 
     def pro_index(self, index: int):
         if isinstance(index, str):
