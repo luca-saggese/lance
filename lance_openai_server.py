@@ -645,6 +645,7 @@ def build_prompt_file(
     """
     Crea il file JSON di input compatibile con ValidationDataset.
     """
+    print(f"[lance_server] Costruzione prompt file per task {task} in {save_dir}...")
     save_dir.mkdir(parents=True, exist_ok=True)
     prompt_file = save_dir / "prompt_input.json"
 
