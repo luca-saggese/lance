@@ -142,6 +142,8 @@ from modeling.qwen2.modeling_qwen2 import Qwen2Config
 from modeling.vae.wan.model import WanVideoVAE
 from modeling.vit.qwen2_5_vl_vit import Qwen2_5_VisionTransformerPretrainedModel
 
+import traceback
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Costanti
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1219,6 +1221,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Aggiungo il gestore di eccezioni per il debug
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Restituisce errori 500 con traceback completo per il debug."""
+    error_trace = traceback.format_exc()
+    print(f"ERRORE NON GESTITO:\n{error_trace}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "traceback": error_trace},
+    )
+
 
 # Istanze globali delle pipeline (inizializzate al primo request o all'avvio)
 _image_pipeline: Optional[LancePipeline] = None
