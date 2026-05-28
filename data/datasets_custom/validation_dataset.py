@@ -158,6 +158,9 @@ class ValidationDataset(Dataset):
 
         self.frame_condition_idx = []
 
+        if getattr(self.data_config, 'first_frame_cond', False):
+            self.frame_condition_idx = [0]  # lock first frame to input image latent
+
         if hasattr(self.data_config, 'system_prompt_type'):
             self.system_prompt_type = self.data_config.system_prompt_type
         else:

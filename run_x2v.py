@@ -131,12 +131,18 @@ def main() -> None:
                         help="Seed per la generazione (default: casuale)")
     parser.add_argument("--timeout", type=int, default=600,
                         help="Timeout richiesta HTTP in secondi (default: 600)")
-    parser.add_argument("--cfg-vit-scale", type=float, default=None,
+    parser.add_argument("--cfg-vit-scale", "--cfg_vit_scale", type=float, default=None,
                         help=(
                             "Scala CFG per i token VIT (immagine). "
                             "Default: 2.0 per lance-ti2v (amplifica preservazione identità), "
                             "1.0 per gli altri modelli. "
                             "Valori > 1 aumentano l'influenza dell'immagine di riferimento."
+                        ))
+    parser.add_argument("--first-frame-cond", "--first_frame_cond", action="store_true", default=False,
+                        help=(
+                            "Usa l'immagine come primo frame fisso del video generato. "
+                            "Il primo latente è bloccato al valore encodato dell'immagine; "
+                            "i frame successivi vengono generati partendo da esso."
                         ))
     parser.add_argument("--output-dir", default="test_outputs",
                         help="Cartella dove salvare il video (default: test_outputs)")
@@ -189,6 +195,8 @@ def main() -> None:
         payload["seed"] = args.seed
     if args.cfg_vit_scale is not None:
         payload["cfg_vit_scale"] = args.cfg_vit_scale
+    if args.first_frame_cond:
+        payload["first_frame_cond"] = True
 
     base_url = f"http://{args.host}:{args.port}"
     stem = args.output_name or f"x2v_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -205,6 +213,8 @@ def main() -> None:
         print(f"VIT CFG : {args.cfg_vit_scale}")
     elif model_name == "lance-ti2v":
         print(f"VIT CFG : 2.0 (default ti2v, preservazione identità)")
+    if args.first_frame_cond:
+        print(f"1st frame: BLOCCATO all'immagine input")
     print()
 
     # ── Richiesta ──────────────────────────────────────────────────────────

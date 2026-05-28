@@ -236,6 +236,7 @@ class InferenceArguments(TrainingArguments):
 
     system_prompt_type:         str = "SP0"  # options: SP1, SP2 ...
     use_KVcache:                bool = False
+    first_frame_cond:           bool = False  # lock first frame of target to the input image
 
 
 @dataclass

@@ -459,6 +459,7 @@ class ChatCompletionRequest(BaseModel):
     timestep_shift: Optional[float] = None
     cfg_scale: Optional[float] = None
     cfg_vit_scale: Optional[float] = None
+    first_frame_cond: Optional[bool] = None
     use_kvcache: Optional[bool] = None
 
     # Campi OpenAI standard ignorati ma accettati per compatibilità
@@ -1071,6 +1072,7 @@ class LancePipeline:
         validation_timestep_shift: float,
         cfg_text_scale: float,
         cfg_vit_scale: float = 1.0,
+        first_frame_cond: bool = False,
         use_kvcache: bool = True,
         reference_video_path: Optional[Path] = None,
         media_items: Optional[List[tuple]] = None,
@@ -1121,6 +1123,7 @@ class LancePipeline:
                 request_model_args = deepcopy(self.base_model_args)
                 request_model_args.cfg_text_scale = cfg_text_scale
                 request_model_args.cfg_vit_scale = cfg_vit_scale
+                request_inference_args.first_frame_cond = first_frame_cond
 
                 request_data_args = DataArguments()
                 request_data_args.val_dataset_config_file = str(prompt_file)
@@ -1450,6 +1453,7 @@ async def chat_completions(request: Request):
     # For ti2v (identity-preserving) use a higher VIT guidance scale by default
     _default_vit_scale = DEFAULT_CFG_VIT_SCALE_TI2V if task == TASK_TI2V else DEFAULT_CFG_VIT_SCALE
     cfg_vit_scale = req.cfg_vit_scale if req.cfg_vit_scale is not None else _default_vit_scale
+    first_frame_cond = req.first_frame_cond if req.first_frame_cond is not None else False
     use_kvcache = req.use_kvcache if req.use_kvcache is not None else USE_KVCACHE
 
     # ── Validazione num_frames per i task video ────────────────────────────
@@ -1524,6 +1528,7 @@ async def chat_completions(request: Request):
                 validation_timestep_shift=timestep_shift,
                 cfg_text_scale=cfg_scale,
                 cfg_vit_scale=cfg_vit_scale,
+                first_frame_cond=first_frame_cond,
                 use_kvcache=use_kvcache,
                 reference_video_path=reference_video_path,
                 media_items=media_items,
