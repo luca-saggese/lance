@@ -22,7 +22,7 @@ import traceback
 
 def generate_system_prompt(system_prompt_type="caption", vision_type="video"):
     print(f"[lance_server] Generazione system prompt per tipo: {system_prompt_type}, vision type: {vision_type}...")
-    traceback.print_stack()
+    #traceback.print_stack()
     if system_prompt_type == "caption":
         str_list = [
             f"Generate a detailed and accurate description of the {vision_type}, including all the key moments and visual details.",
@@ -36,7 +36,7 @@ def generate_system_prompt(system_prompt_type="caption", vision_type="video"):
         str_list = [f"Describe the {vision_type} by detailing the color, quantity, text, shape, size, texture, spatial relationships of the objects and background:"]
     elif "edit" in system_prompt_type:
         str_list = [f"Describe the key features of the input {vision_type} (color, shape, size, texture, objects, background), then explain how the user’s text instruction should alter or modify the {vision_type}. Generate a new {vision_type} that meets the user’s requirements while maintaining consistency with the original input where appropriate."]
-    elif "idip" in system_prompt_type:
+    elif "idip" in system_prompt_type or system_prompt_type == "tiv2v":
         str_list = [f"Describe the key features of the input image (color, shape, size, texture, objects, background, style), then incorporate the user's text description to generate a new {vision_type} that satisfies the user's requirements while preserving the essential identity and object or style information from the reference input."]
     elif system_prompt_type == "x2v":
         str_list = [f"Describe the key features of the input media (color, shape, size, texture, objects, background), then use the user's text instruction to guide the generation of a new {vision_type} that meets the requirements while drawing visual inspiration from the reference inputs."]
