@@ -661,10 +661,8 @@ def build_prompt_file(
         if media_path is None:
             raise ValueError("image_edit richiede un'immagine in input.")
         img_str = str(media_path)
-        # Per tiv2v_idip, il target è un video, quindi la chiave deve essere .mp4
-        key = "000000.mp4" if "idip" in prompt else "000000"
         payload = {
-            key: {
+            "000000": {
                 "interleave_array": [prompt, img_str, img_str],
                 "element_dtype_array": ["text", "image", "image"],
                 "istarget_in_interleave": [0, 0, 1],
