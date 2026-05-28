@@ -705,6 +705,7 @@ def build_prompt_file(
         }
 
     elif task == TASK_TI2V:
+        print("[lance_server] Task Text+Image to Video: costruzione payload con prompt, immagine e video di riferimento (placeholder se non fornito).")
         if media_path is None:
             raise ValueError("ti2v richiede un'immagine in input.")
         # Se non viene fornito un video di riferimento, creane uno placeholder
@@ -724,6 +725,7 @@ def build_prompt_file(
         }
 
     elif task == TASK_X2V:
+        print("[lance_server] Task Text+Image to Video: costruzione payload con prompt e media items (placeholder se necessario).")
         # media_items: lista di (path, dtype) con dtype in {"image", "video"}
         if not media_items:
             raise ValueError("x2v richiede almeno un media in input.")
