@@ -1123,7 +1123,6 @@ class LancePipeline:
                 request_model_args = deepcopy(self.base_model_args)
                 request_model_args.cfg_text_scale = cfg_text_scale
                 request_model_args.cfg_vit_scale = cfg_vit_scale
-                request_inference_args.first_frame_cond = first_frame_cond
 
                 request_data_args = DataArguments()
                 request_data_args.val_dataset_config_file = str(prompt_file)
@@ -1142,6 +1141,7 @@ class LancePipeline:
                 request_inference_args.task = task
                 request_inference_args.text_template = TEXT_TEMPLATE
                 request_inference_args.use_KVcache = use_kvcache
+                request_inference_args.first_frame_cond = first_frame_cond
                 request_inference_args.prompt_data_dict = {}
 
                 print(
