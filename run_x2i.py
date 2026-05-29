@@ -126,6 +126,16 @@ def main() -> None:
                             "Scala CFG per i token VIT (immagine). "
                             "Valori > 1 aumentano l'influenza dell'immagine di riferimento."
                         ))
+    parser.add_argument("-W", "--width", type=int, default=None,
+                        help="Larghezza immagine output in pixel (default: 768)")
+    parser.add_argument("-H", "--height", type=int, default=None,
+                        help="Altezza immagine output in pixel (default: 768)")
+    parser.add_argument("--mask", metavar="PATH", default=None,
+                        help=(
+                            "Maschera di inpainting (immagine in scala di grigi). "
+                            "Bianco (255) = zona da modificare con il prompt. "
+                            "Nero (0) = zona da preservare intatta."
+                        ))
     parser.add_argument("--output-dir", default="test_outputs",
                         help="Cartella dove salvare l'immagine (default: test_outputs)")
     parser.add_argument("--output-name", default=None,
@@ -148,6 +158,13 @@ def main() -> None:
 
     if not image_paths and video_path is None:
         sys.exit("Specifica almeno un --image o un --video come input.")
+
+    # Maschera di inpainting (opzionale)
+    mask_path: Path | None = None
+    if args.mask:
+        mask_path = Path(args.mask)
+        if not mask_path.exists():
+            sys.exit(f"Maschera non trovata: {mask_path}")
 
     # ── Selezione automatica del modello ──────────────────────────────────
     # - Una sola immagine (no video) → lance-i2i  (editing diretto)
@@ -172,6 +189,12 @@ def main() -> None:
         payload["seed"] = args.seed
     if args.cfg_vit_scale is not None:
         payload["cfg_vit_scale"] = args.cfg_vit_scale
+    if args.width is not None:
+        payload["video_width"] = args.width
+    if args.height is not None:
+        payload["video_height"] = args.height
+    if mask_path is not None:
+        payload["mask_url"] = _file_to_data_uri(mask_path, _mime_for_image(mask_path))
 
     base_url = f"http://{args.host}:{args.port}"
     stem = args.output_name or f"x2i_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -185,6 +208,10 @@ def main() -> None:
     print(f"Steps   : {args.timesteps}  |  seed: {args.seed if args.seed is not None else 'casuale'}")
     if args.cfg_vit_scale is not None:
         print(f"VIT CFG : {args.cfg_vit_scale}")
+    if args.width is not None or args.height is not None:
+        print(f"Size    : {args.width or 'default'}x{args.height or 'default'}")
+    if mask_path is not None:
+        print(f"Maschera: {mask_path.resolve()}")
     print()
 
     # ── Richiesta ──────────────────────────────────────────────────────────

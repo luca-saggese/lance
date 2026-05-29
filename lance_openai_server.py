@@ -462,6 +462,9 @@ class ChatCompletionRequest(BaseModel):
     first_frame_cond: Optional[bool] = None
     use_kvcache: Optional[bool] = None
 
+    # Maschera per inpainting: URL o data URI (bianco=modifica, nero=preserva)
+    mask_url: Optional[str] = None
+
     # Campi OpenAI standard ignorati ma accettati per compatibilità
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
@@ -542,6 +545,38 @@ def encode_file_as_data_url(path: Path) -> str:
         mime = "application/octet-stream"
     b64 = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{b64}"
+
+
+def _apply_inpaint_mask(generated_path: Path, source_path: Path, mask_path: Path) -> None:
+    """
+    Composta l'immagine generata con l'immagine sorgente usando la maschera.
+
+    Convenzione maschera:
+      Bianco (255) → mantieni il pixel generato  (zona di modifica)
+      Nero   (0)   → preserva il pixel sorgente  (zona da non toccare)
+
+    La maschera può essere in scala di grigi (valori intermedi → blend morbido).
+    Source e maschera vengono ridimensionate alle dimensioni dell'immagine generata.
+    """
+    from PIL import Image as _Image
+    import numpy as np
+
+    gen = _Image.open(generated_path).convert("RGB")
+    src = _Image.open(source_path).convert("RGB")
+    mask = _Image.open(mask_path).convert("L")
+
+    W, H = gen.size
+    src = src.resize((W, H), _Image.LANCZOS)
+    mask = mask.resize((W, H), _Image.LANCZOS)
+
+    gen_np = np.array(gen, dtype=np.float32)
+    src_np = np.array(src, dtype=np.float32)
+    # Normalizza la maschera in [0.0, 1.0]: 1=modifica, 0=preserva
+    mask_np = np.array(mask, dtype=np.float32)[:, :, np.newaxis] / 255.0
+
+    composite = mask_np * gen_np + (1.0 - mask_np) * src_np
+    composite = np.clip(composite, 0, 255).astype(np.uint8)
+    _Image.fromarray(composite).save(generated_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1076,6 +1111,7 @@ class LancePipeline:
         use_kvcache: bool = True,
         reference_video_path: Optional[Path] = None,
         media_items: Optional[List[tuple]] = None,
+        mask_path: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
         Esegue l'inferenza e restituisce un dizionario con:
@@ -1222,6 +1258,20 @@ class LancePipeline:
                 elif task in {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2I}:
                     # Immagini
                     images = sorted(save_dir.glob("*.png"), key=lambda p: p.stat().st_mtime)
+                    # Applica la maschera di inpainting se fornita
+                    if mask_path is not None and images:
+                        source_for_mask = media_path
+                        if source_for_mask is None and media_items:
+                            source_for_mask = media_items[0][0]
+                        if source_for_mask is not None:
+                            for img_path in images:
+                                try:
+                                    _apply_inpaint_mask(img_path, source_for_mask, mask_path)
+                                    print(f"[lance_server] Maschera applicata a {img_path.name}", flush=True)
+                                except Exception as _me:
+                                    print(f"[lance_server][WARN] Errore applicando maschera a {img_path.name}: {_me}", flush=True)
+                        else:
+                            print("[lance_server][WARN] Maschera ignorata: nessuna immagine sorgente disponibile.", flush=True)
                     result["images"] = [encode_file_as_data_url(img) for img in images]
 
                 elif task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V, TASK_X2V}:
@@ -1440,6 +1490,16 @@ async def chat_completions(request: Request):
         shutil.rmtree(tmp_media_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Errore nella risoluzione del media: {exc}") from exc
 
+    # ── Risolvi la maschera di inpainting (opzionale) ─────────────────────
+    mask_path: Optional[Path] = None
+    if req.mask_url is not None:
+        try:
+            mask_path = resolve_media(req.mask_url, "image", tmp_media_dir)
+            print(f"[lance_server] Maschera caricata da: {mask_path}", flush=True)
+        except Exception as exc:
+            shutil.rmtree(tmp_media_dir, ignore_errors=True)
+            raise HTTPException(status_code=400, detail=f"Errore nella risoluzione della maschera: {exc}") from exc
+
     # ── Parametri di generazione ───────────────────────────────────────────
     td = TASK_DEFAULTS[task]
     seed = req.seed if req.seed is not None else random.randint(0, 2**31 - 1)
@@ -1532,6 +1592,7 @@ async def chat_completions(request: Request):
                 use_kvcache=use_kvcache,
                 reference_video_path=reference_video_path,
                 media_items=media_items,
+                mask_path=mask_path,
             ),
         )
     except Exception as exc:
