@@ -278,6 +278,7 @@ def validate_on_fixed_batch(
     save_source_video: bool = False,
     save_path_gen: str = "",
     save_path_gt: str = "",
+    inpaint_mask=None,
 ):
     val_data = val_data_cpu.cuda(device).to_dict()
     fsdp_model = fsdp_model.to(device=device, dtype=torch.bfloat16)
@@ -328,6 +329,7 @@ def validate_on_fixed_batch(
                 "cfg_uncond_token_id": training_args.cfg_uncond_token_id,
                 "index": val_data["index"],
                 "val_padded_videos": val_data["padded_videos"] if save_source_video else None,
+                "inpaint_mask": inpaint_mask,
             }
             if inference_args.use_KVcache:
                 denoise_latent, captions, padded_videos, index = fsdp_model.validation_gen_KVcache(**params)

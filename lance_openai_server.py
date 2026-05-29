@@ -547,38 +547,6 @@ def encode_file_as_data_url(path: Path) -> str:
     return f"data:{mime};base64,{b64}"
 
 
-def _apply_inpaint_mask(generated_path: Path, source_path: Path, mask_path: Path) -> None:
-    """
-    Composta l'immagine generata con l'immagine sorgente usando la maschera.
-
-    Convenzione maschera:
-      Bianco (255) → mantieni il pixel generato  (zona di modifica)
-      Nero   (0)   → preserva il pixel sorgente  (zona da non toccare)
-
-    La maschera può essere in scala di grigi (valori intermedi → blend morbido).
-    Source e maschera vengono ridimensionate alle dimensioni dell'immagine generata.
-    """
-    from PIL import Image as _Image
-    import numpy as np
-
-    gen = _Image.open(generated_path).convert("RGB")
-    src = _Image.open(source_path).convert("RGB")
-    mask = _Image.open(mask_path).convert("L")
-
-    W, H = gen.size
-    src = src.resize((W, H), _Image.LANCZOS)
-    mask = mask.resize((W, H), _Image.LANCZOS)
-
-    gen_np = np.array(gen, dtype=np.float32)
-    src_np = np.array(src, dtype=np.float32)
-    # Normalizza la maschera in [0.0, 1.0]: 1=modifica, 0=preserva
-    mask_np = np.array(mask, dtype=np.float32)[:, :, np.newaxis] / 255.0
-
-    composite = mask_np * gen_np + (1.0 - mask_np) * src_np
-    composite = np.clip(composite, 0, 255).astype(np.uint8)
-    _Image.fromarray(composite).save(generated_path)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Task detection
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1202,6 +1170,19 @@ class LancePipeline:
                     data_args=request_data_args,
                     inference_args=request_inference_args,
                 )
+
+                # ---- Prepara la maschera di inpainting come tensore 2D ----
+                # Convenzione: 1.0 = zona da modificare (bianco), 0.0 = zona da preservare (nero)
+                inpaint_mask_tensor = None
+                if mask_path is not None:
+                    from PIL import Image as _PIL_Image
+                    import numpy as _np
+                    import torch as _torch
+                    _mask_img = _PIL_Image.open(mask_path).convert("L")
+                    _mask_np = _np.array(_mask_img, dtype=_np.float32) / 255.0
+                    inpaint_mask_tensor = _torch.from_numpy(_mask_np)  # shape (H, W)
+                    print(f"[lance_server] Maschera caricata: {mask_path.name}  size={_mask_img.size}", flush=True)
+
                 validate_on_fixed_batch(
                     fsdp_model=self.model,
                     vae_model=self.vae_model,
@@ -1216,6 +1197,7 @@ class LancePipeline:
                     save_source_video=False,
                     save_path_gen=str(save_dir),
                     save_path_gt="",
+                    inpaint_mask=inpaint_mask_tensor,
                 )
                 save_prompt_results(
                     request_inference_args.prompt_data_dict, str(save_dir), self.logger
@@ -1258,20 +1240,6 @@ class LancePipeline:
                 elif task in {TASK_T2I, TASK_IMAGE_EDIT, TASK_X2I}:
                     # Immagini
                     images = sorted(save_dir.glob("*.png"), key=lambda p: p.stat().st_mtime)
-                    # Applica la maschera di inpainting se fornita
-                    if mask_path is not None and images:
-                        source_for_mask = media_path
-                        if source_for_mask is None and media_items:
-                            source_for_mask = media_items[0][0]
-                        if source_for_mask is not None:
-                            for img_path in images:
-                                try:
-                                    _apply_inpaint_mask(img_path, source_for_mask, mask_path)
-                                    print(f"[lance_server] Maschera applicata a {img_path.name}", flush=True)
-                                except Exception as _me:
-                                    print(f"[lance_server][WARN] Errore applicando maschera a {img_path.name}: {_me}", flush=True)
-                        else:
-                            print("[lance_server][WARN] Maschera ignorata: nessuna immagine sorgente disponibile.", flush=True)
                     result["images"] = [encode_file_as_data_url(img) for img in images]
 
                 elif task in {TASK_T2V, TASK_VIDEO_EDIT, TASK_TI2V, TASK_X2V}:

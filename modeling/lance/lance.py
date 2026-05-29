@@ -1602,9 +1602,37 @@ class Lance(PreTrainedModel):
                 generator = None
             x_t = torch.randn(num_vid_tokens, self.patch_latent_dim, generator=generator, device=device, dtype=dtype)  # [1*t*h*w, pt*ph*pw*C]
 
+            # ---- Inpainting / RePaint support ----------------------------------------
+            # kwargs["inpaint_mask"]: 2D float tensor (H_mask, W_mask), values in [0,1]
+            #   1 = edit region (receives full noise)
+            #   0 = preserve region (keeps source latent, re-anchored every denoising step)
+            _inpaint_mask_2d = kwargs.get("inpaint_mask", None)
+            _repaint_x0   = None   # clean source latent at target positions  (h*w, C)
+            _repaint_eps  = None   # initial noise at target positions         (h*w, C)
+            _repaint_mask = None   # spatial mask, shape (h*w, 1), dtype=dtype
+
             if curr_padded_latent != []:  # 存在 vae_condition
+                # Save source latent and initial noise BEFORE overwriting with noise
+                if _inpaint_mask_2d is not None:
+                    _repaint_x0  = curr_padded_latent[current_vae_mse_indexes_local_in_vae].clone().to(device=device, dtype=dtype)
+                    _repaint_eps = x_t[current_vae_mse_indexes_local_in_vae].clone()
+                    # Resize the 2-D mask to the latent spatial dims of the target image
+                    _t_lat, _h_lat, _w_lat = vid_shape_list[-1]
+                    _mask_t = _inpaint_mask_2d.unsqueeze(0).unsqueeze(0).float()   # (1,1,H,W)
+                    _mask_t = F.interpolate(_mask_t.to(device), size=(_h_lat, _w_lat),
+                                            mode='bilinear', align_corners=False)
+                    _repaint_mask = _mask_t.view(_h_lat * _w_lat, 1).to(dtype=dtype)  # (h*w, 1)
+
                 curr_padded_latent[current_vae_mse_indexes_local_in_vae] = x_t[current_vae_mse_indexes_local_in_vae]
+
+                # Apply masked initialisation: edit=noise, preserve=source latent
+                if _repaint_mask is not None:
+                    curr_padded_latent[current_vae_mse_indexes_local_in_vae] = (
+                        _repaint_mask * _repaint_eps + (1.0 - _repaint_mask) * _repaint_x0
+                    )
+
                 x_t = curr_padded_latent
+            # ---- end inpainting init --------------------------------------------------
 
             timesteps = torch.linspace(1, 0, num_timesteps + 1, device=x_t.device)  # fix: 加1
             timesteps = timestep_shift * timesteps / (1 + (timestep_shift - 1) * timesteps)
@@ -1789,6 +1817,17 @@ class Lance(PreTrainedModel):
                         v_t = v_t_ * scale
 
                     x_t[current_vae_mse_indexes_local_in_vae] = x_t[current_vae_mse_indexes_local_in_vae] - v_t.to(x_t.device) * dts[i]  # velocity pointing from data to noise
+
+                    # ---- RePaint: re-anchor the preserve region to the forward-noised source ----
+                    # x_{t_next} = t_next * epsilon + (1 - t_next) * x0_source
+                    if _repaint_mask is not None:
+                        _t_next = (timestep_ - dts[i]).clamp(min=0.0)
+                        _x_keep = _t_next * _repaint_eps + (1.0 - _t_next) * _repaint_x0
+                        _tgt = current_vae_mse_indexes_local_in_vae
+                        x_t[_tgt] = (
+                            _repaint_mask * x_t[_tgt] +
+                            (1.0 - _repaint_mask) * _x_keep.to(x_t.device)
+                        )
 
             # ---- 每个样本各自重排到 [T,H,W,C]，避免用最后一个样本的 t/h/w 去重排整批 ----
             curr_seq_target, patch = 0, []
