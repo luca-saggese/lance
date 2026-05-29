@@ -1,0 +1,1 @@
+docker run --rm -ti --gpus all -p 8088:8000 lance
